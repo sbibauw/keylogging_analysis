@@ -52,6 +52,8 @@ The functions proposed in this module can be distinguished in three categories
 
 > ### kldf.add_revisions(method)
 
+> ### add_location
+
 > ### kldf.writing_speed(method)
 > Get the writing speed of a dataframe in characters per minute
 
@@ -59,8 +61,8 @@ The functions proposed in this module can be distinguished in three categories
 > Get info on bursts (mean, median, list of lengths)????
 
 > ### kldf.median_iki()
-
-
+> nb bursts
+>   fabra!!!
 > ### kldf.revision_rate()
 
 > ### kldf.process_characters()
@@ -72,8 +74,9 @@ The functions proposed in this module can be distinguished in three categories
 > ### kldf.pause_rate()
 
 > ### kldf.pause_location()
+> 
 
 ## convertion
 > ### kldf.convert()
 
-
+messages
