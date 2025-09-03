@@ -14,7 +14,7 @@ requires-python = ">=3.9"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
-    "License :: OSI Approved :: MIT License"
+    "License :: OSI Approved :: BSD License"
 ]
 license = "MIT"
 license-files = ["LICENCSE"]
