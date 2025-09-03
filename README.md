@@ -9,7 +9,7 @@
 # Language Hero and Language Lab data
 
 
-# Documentation keylogging_analysis version 1.0
+# Documentation keylogging_analysis version 0.0.1
 
 The functions proposed in this module can be distinguished in three categories
 1. preprocessing
