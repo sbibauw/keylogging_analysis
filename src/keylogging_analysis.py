@@ -184,7 +184,7 @@ class KeyLoggingDataFrame(pd.DataFrame):
         # 5. Raise a warning if there are keys without a corresponding message
         if not keys["message_id"].isin(messages["message_id"]).all():
             num_orphaned = (~keys["message_id"].isin(messages["message_id"])).sum()
-            warnings.warn(f"There are {num_orphaned} keys without a corresponding message.")
+            warnings.warn(f"There are {num_orphaned} keys without a corresponding message. These will not be included in the final dataframe")
 
         # 4. Merge dataframes
         merged_df = pd.merge(keys, messages, on="message_id", how="inner")
@@ -203,3 +203,9 @@ class KeyLoggingDataFrame(pd.DataFrame):
 
         print("Created KeyLoggingDataFrame of shape", self.shape)
 
+    def add_iki(self):
+        """Add inter-key interval (IKI) column to the dataframe."""
+        if "key_time" not in self.columns:
+            raise ValueError("DataFrame must contain 'key_time' column to calculate IKI.")
+        
+        return self
