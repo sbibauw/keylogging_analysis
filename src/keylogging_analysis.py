@@ -13,6 +13,7 @@ Description: definition of class KeyLoggingDataFrame for preprocessing and analy
 
 import pandas as pd
 import warnings
+from pathlib import Path
 
 
 class KeyLoggingDataFrame(pd.DataFrame):
@@ -22,7 +23,28 @@ class KeyLoggingDataFrame(pd.DataFrame):
         if self.empty:
             self._metadata = []
 
+    def load_default_data(self, system):
+        # 1. verify parameters
+        if system not in ("lh", "ll"):
+            raise ValueError(f"Invalid system '{system}'. Must be 'lh' (Language Hero) or 'll' (Language Lab).")
 
+        base_dir = Path(__file__).resolve().parent
+
+        if system == "lh":
+            # load data
+            dtype_dict = {"key_id": int, "content": str, "event_for_message_type": str, "key_time": str, "message_id": int, "user_status": str, "message_content": str, "message_created_at": str, "session_id": int, "PERSONA_ID": float, "USER_ID": float, "TASK_ID": float, "application": str, "creationDate_conversation": str, "targetLang": int, "tutorLang": int, "hasTasks": bool, "CREATOR_ID": int, "SCENARIO_ID": int, "preCreated": bool, "simulated": bool, "archivedForProcessing": bool, "username": str}
+            df = pd.read_csv(base_dir / "data/lh_default.csv", dtype=dtype_dict)
+            df["key_time"] = pd.to_datetime(df["key_time"], format="%Y-%m-%d %H:%M:%S.%f", errors="coerce")
+            df["message_created_at"] = pd.to_datetime(df["message_created_at"],format="%Y-%m-%d %H:%M:%S.%f", errors="coerce") 
+            self.__init__(df)
+
+        elif system == "ll":
+            dtype_dict = {"key_id": int, "message_id": int, "content": str, "key_time": str, "message_uid": str, "message_content": str, "user_id": int, "session_id": int, "reply_to_message_id": str, "message_created_at": str}
+            df = pd.read_csv(base_dir / "data/ll_default.csv", dtype=dtype_dict)
+            df["key_time"] = pd.to_datetime(df["key_time"], format="%Y-%m-%d %H:%M:%S.%f", errors="coerce")
+            df["message_created_at"] = pd.to_datetime(df["message_created_at"], errors="coerce")
+            self.__init__(df)
+        
     def load_data_from_path(self, path_keys:str, path_messages:str, system:str):
         """Initialize the KeyLoggingDataFrame with key and message data.
         input:
@@ -111,6 +133,3 @@ class KeyLoggingDataFrame(pd.DataFrame):
         merged_df = pd.merge(keys, messages, on="message_id", how="inner")
         self.__init__(merged_df)
 
-
-
-   
