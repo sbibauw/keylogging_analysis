@@ -6,15 +6,42 @@
 
 (pip)
 
-# Language Hero and Language Lab data
+# On Language Hero and Language Lab data
+
+The Language Hero corpus contains keylogs of L2 learner interactions with conversational agents within the educational game Language Hero, developed by Linguineo. 
+
+The Language Lab data contains keylogs of L2 learners and their tutors within a chat environment.
+
+# Use of `keylogging_analysis`
+
+The `keylogging_analysis` package facilitates analysis of keylogging data through the class KeyLoggingDataFrame, conceived as a subclass of a Pandas DataFrame. Besides the traditional methods applicable to Pandas dataframes, the class allows for additional methods aimed at loading keylogging data, processing it, computing metrics on the writing process and converting the data into KeyLog format. This section explains step by step how to proceed with the analysis. A more detailed description of the methods and their requirements can be found in the documentation below.
+
+## 1. import the class and initiate an empty instance of this class
+
+First, import the class KeyLoggingDataframe and instantiate an empty instance (e.g. kldf) to store the data in.
+```
+from keylogging_analysis import KeyLoggingDataFrame
+
+kldf = KeyLoggingDataFrame()
+```
+Or alternatively
+```
+import keylogging_analysis as ka
+
+kldf = ka.KeyloggingDataFrame()
+```
+
+## load keylogging data into the dataframe
+
+When accessing the default datasets of either Language Hero or Language Lab, use the method `load_default_data()`. The parameter `system` specifies whether to load the default dataset of Language Hero (`"lh"`) or Language Lab (`"ll"`)
+
+```
+klds.load_default data()
+
+# Documentation `keylogging_analysis version 0.0.1`
 
 
-# Documentation keylogging_analysis version 0.0.1
 
-The functions proposed in this module can be distinguished in three categories
-1. preprocessing
-2. analysis
-3. convertion
 
 ## preprocessing
 
