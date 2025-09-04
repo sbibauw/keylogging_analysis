@@ -31,24 +31,28 @@ import keylogging_analysis as ka
 kldf = ka.KeyloggingDataFrame()
 ```
 
-## load keylogging data into the dataframe
+## loading and preprocessing keylogging data 
 
 To load the default datasets of either Language Hero or Language Lab into the KeyLoggingDataFrame instance defined in the previous step, use the method `load_default_data()`. The parameter `system` specifies whether to load the default dataset of Language Hero (`"lh"`) or Language Lab (`"ll"`)
 
 ```
 kldf.load_default_data(system="lh")
 ```
+
 Alternatively, the method `load_data_from_path()` allows other datasets to be uploaded to the KeyLoggingDataFrame instance, through specifying the absolute or relative path towards the .csv files containing the keys (`path_keys`) and the messages (`path_messages`). This may be useful when analysing a selection or a preprocessed version of the corpora. The parameter `system` is still required to specify to which column names to expect. Make sure the specified dataframes respect the constraints detailed in the documentation below.
 
 ```
-kldf.load_data_from_path(path_keys="keys.csv", path_messages="messages.csv", system="ll")
+kldf.load_data_from_path(system="ll", path_keys="keys.csv", path_messages="messages.csv")
 ```
 
-## preprocess the dataframe
+For Language Hero data only (`system="lh"`), `load_default_data` and `load_data_from_path` drop by default events occurring in anonymized messages, nonsense messages (which contain keysmashes or character repetitions) and messages from native speakers. This behaviour can be undone by setting the parameters `include_anonymized`, `include_nonsense` or `include_native` to `True`.
 
-## select a subset of the data
+```
+kldf.load_data_from_path(system="ll", path_keys="keys.csv", path_messages="messages.csv", include_anonymized=False, include_nonsense=True, include_native=True)
+```
 
-## perform analyses
+## analysis
+
 
 
 # Documentation `keylogging_analysis version 0.0.1`
