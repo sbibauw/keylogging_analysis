@@ -12,6 +12,7 @@ Description: definition of class KeyLoggingDataFrame for preprocessing and analy
 # 1. preprocessing methods
 
 import pandas as pd
+import numpy as np
 import warnings
 from pathlib import Path
 
@@ -22,6 +23,7 @@ class KeyLoggingDataFrame(pd.DataFrame):
         super().__init__(*args, **kwargs)
         if self.empty:
             self._metadata = []
+        self.system = None
 
     def _drop_anonymized(self):
         before = len(self)
@@ -44,7 +46,7 @@ class KeyLoggingDataFrame(pd.DataFrame):
         print(f"Dropped {before - after} events of native speakers")
 
 
-    def load_default_data(self, system, include_anonymized:bool|None = None, include_nonsense:bool|None = None, include_native:bool|None = None):
+    def load_default_data(self, system, include_anonymized:bool|None = None, include_nonsense:bool|None = None, include_native:bool|None = None) -> "KeyLoggingDataFrame":
         # 1. verify parameters
         if system not in ("lh", "ll"):
             raise ValueError(f"Invalid system '{system}'. Must be 'lh' (Language Hero) or 'll' (Language Lab).")
@@ -61,6 +63,7 @@ class KeyLoggingDataFrame(pd.DataFrame):
             raise ValueError(
                 "include_native can only be specified when system='lh'."
             )
+        self.system = system
         
         # 2. load data
         base_dir = Path(__file__).resolve().parent
@@ -90,7 +93,9 @@ class KeyLoggingDataFrame(pd.DataFrame):
                 self._drop_native()
         print("KeyLoggingDataFrame of shape", self.shape)
 
-    def load_data_from_path(self, system:str, path_keys:str, path_messages:str, include_anonymized:bool|None = None, include_nonsense:bool|None = None, include_native:bool|None = None):
+        return self
+
+    def load_data_from_path(self, system:str, path_keys:str, path_messages:str, include_anonymized:bool|None = None, include_nonsense:bool|None = None, include_native:bool|None = None) -> "KeyLoggingDataFrame":
         """Initialize the KeyLoggingDataFrame with key and message data.
         input:
             path_keys: str, path to the keys/events logging data CSV file
@@ -113,7 +118,8 @@ class KeyLoggingDataFrame(pd.DataFrame):
             raise ValueError(
                 "include_native can only be specified when system='lh'."
             )
-        
+        self.system = system
+
         # 2. open files
         try:
             keys = pd.read_csv(path_keys)
@@ -121,7 +127,7 @@ class KeyLoggingDataFrame(pd.DataFrame):
         except Exception as e:
             raise FileNotFoundError(f"Error reading files: {e}")
 
-        # 2. normalise column names
+        # 3. normalise column names
         try:
             if system == "lh":
                 keys = keys.rename(columns={
@@ -154,6 +160,22 @@ class KeyLoggingDataFrame(pd.DataFrame):
                 })
         except Exception as e:
             raise ValueError(f"Error renaming columns: {e}")
+
+        # 4. add missing columns
+        # Language Lab does not have event_for_message_type and user_status columns
+        if system == "ll":
+            if "event_for_message_type" not in keys.columns:
+                keys["event_for_message_type"] = 0
+                # set first event of each message to 5 if column content is empty
+                first_events = keys.sort_values(by=["message_id", "key_time"]).groupby("message_id").head(1).index
+                empty_content = keys[keys["content"].isnull()].index
+                keys.loc[first_events.intersection(empty_content), "event_for_message_type"] = 5
+            if "user_status" not in messages.columns:
+                # TO DO: ideally user status already in messages
+                messages["user_status"] = "L"
+                messages.loc[messages["user_id"] == 8, "user_status"] = "T"
+
+
 
         # 3. read columns in correct format
         for col in ["key_id", "message_id", "session_id"]:
@@ -200,12 +222,67 @@ class KeyLoggingDataFrame(pd.DataFrame):
                 self._drop_nonsense()
             if not include_native:
                 self._drop_native()
-
         print("Created KeyLoggingDataFrame of shape", self.shape)
 
-    def add_iki(self):
-        """Add inter-key interval (IKI) column to the dataframe."""
+        return self
+
+    def add_iki(self, colname: str = "iki", include_first_key: bool = False, include_nontyping_events: bool = False) -> "KeyLoggingDataFrame":
+        """Add inter-key interval (IKI) column to the dataframe. The IKI is the time difference in milliseconds between consecutive key presses within the same message.
+        input: 
+            colname: str, name of the new column to be added (default is 'iki'). Make sure it does not already exist in the dataframe.
+        output: KeyLoggingDataFrame with new IKI column"""
+        
+        # 1. verify parameters
         if "key_time" not in self.columns:
             raise ValueError("DataFrame must contain 'key_time' column to calculate IKI.")
+        if "message_id" not in self.columns:
+            raise ValueError("DataFrame must contain 'message_id' column to calculate IKI.")
+        if "event_for_message_type" not in self.columns:
+            raise ValueError("ignore_nontyping_events can only be used if 'event_for_message_type' column is present")
+        if colname in self.columns:
+            raise ValueError(f"Column '{colname}' already exists in the DataFrame. Please choose a different name.")
+        if include_nontyping_events is True and include_first_key is False:
+            raise ValueError("include_first_key can only be False if include_nontyping_events is False")
         
+        # 2. Make copy of dataframe in self
+        df = self.copy()
+        df = df.sort_values(by=['message_id', 'key_time'])
+
+        # 3. Select events specified in parameters and compute IKI
+        df["event_for_message_type"] = pd.to_numeric(df["event_for_message_type"])
+        if not include_nontyping_events:
+            if not include_first_key:
+                df = df[df['event_for_message_type'] == 0]
+                df['prev_key_time'] = df['key_time'].shift(1)
+                df['prev_message_id'] = df['message_id'].shift(1)
+                df[colname] = np.where(
+                    (df['message_id'] == df['prev_message_id']) & (df['event_for_message_type'] == 0),
+                    (df['key_time'] - df['prev_key_time']) / 1000000,
+                    pd.NaT
+                    )
+            else:
+                df = df[df['event_for_message_type'].isin([0, 5])]
+                df['prev_key_time'] = df['key_time'].shift(1)
+                df['prev_message_id'] = df['message_id'].shift(1)
+                df[colname] = np.where(
+                    (df['message_id'] == df['prev_message_id']) & (df['event_for_message_type'] == 0),
+                    (df['key_time'] - df['prev_key_time']) / 1000000,
+                    pd.NaT
+                    )
+        else:
+            df['prev_key_time'] = df['key_time'].shift(1)
+            df['prev_message_id'] = df['message_id'].shift(1)
+            df[colname] = np.where(
+                (df['message_id'] == df['prev_message_id']),
+                (df['key_time'] - df['prev_key_time']) / 1000000,
+                pd.NaT
+                )
+        
+        # 4. Merge IKI column back into self on key_id
+        merged_df = self.merge(df[['key_id', colname]], on='key_id', how='left')
+
+        # 5. Set empty iki values to pd.NaT
+        merged_df[colname] = pd.to_numeric(merged_df[colname], errors='coerce')
+
+        self.__init__(merged_df)
         return self
