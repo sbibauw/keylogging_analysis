@@ -51,9 +51,20 @@ For Language Hero data only (`system="lh"`), `load_default_data` and `load_data_
 kldf.load_data_from_path(system="ll", path_keys="keys.csv", path_messages="messages.csv", include_anonymized=False, include_nonsense=True, include_native=True)
 ```
 
-## analysis
+## Analysis
 
-
+Besides the standard methods of pandas DataFrames, the class KeyLoggingDataFrames allows for specific methods related to writing process analysis to be performed on the data. The methods `add_iki()`, `add_pause()`, `add_action()` add a column to the original dataframe, which can be analysed later. Mek sure to specify column names that don't exist in the original column yet.
+```
+kldf.add_iki(colname="iki")
+print(kldf[["content", "event_for_message_type", "iki"]].head())
+_____________________________________________________________________________________________________________________________________________
+  content  event_for_message_type   iki
+0       H                       0    NaN  
+1      He                       0  123.0 
+2     Hel                       0  110.0  
+3    Hell                       0  145.0  
+4   Hello                       0  145.0 
+```
 
 # Documentation `keylogging_analysis version 0.0.1`
 
