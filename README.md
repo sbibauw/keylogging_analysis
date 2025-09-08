@@ -16,7 +16,7 @@ The Language Lab data contains keylogs of L2 learners and their tutors within a 
 
 The `keylogging_analysis` package facilitates analysis of keylogging data through the class KeyLoggingDataFrame, conceived as a subclass of a Pandas DataFrame. Besides the traditional methods applicable to Pandas dataframes, the class allows for additional methods aimed at loading keylogging data, processing it, computing metrics on the writing process and converting the data into KeyLog format. This section explains step by step how to proceed with the analysis. A more detailed description of the methods and their requirements can be found in the documentation below.
 
-## 1. import the class and initiate an empty instance of this class
+## 1. Import the class and instantiate an empty instance of this class
 
 First, import the class KeyLoggingDataframe and instantiate an empty instance (e.g. kldf) to store the data in.
 ```
@@ -31,7 +31,7 @@ import keylogging_analysis as ka
 kldf = ka.KeyloggingDataFrame()
 ```
 
-## loading and preprocessing keylogging data 
+## 2. Loading and preprocess data 
 
 To load the default datasets of either Language Hero or Language Lab into the KeyLoggingDataFrame instance defined in the previous step, use the method `load_default_data()`. The parameter `system` specifies whether to load the default dataset of Language Hero (`"lh"`) or Language Lab (`"ll"`)
 
@@ -51,9 +51,10 @@ For Language Hero data only (`system="lh"`), `load_default_data` and `load_data_
 kldf.load_data_from_path(system="ll", path_keys="keys.csv", path_messages="messages.csv", include_anonymized=False, include_nonsense=True, include_native=True)
 ```
 
-## Analysis
+## 3. Apply methods to analyse data
 
-Besides the standard methods of pandas DataFrames, the class KeyLoggingDataFrames allows for specific methods related to writing process analysis to be performed on the data. The methods `add_iki()`, `add_pause()`, `add_action()` add a column to the original dataframe, which can be analysed later. Mek sure to specify column names that don't exist in the original column yet.
+Besides the standard methods of pandas DataFrames, the class KeyLoggingDataFrames allows for specific methods related to writing process analysis to be performed on the data. The methods `add_iki()`, `add_pause()`, `add_action()`, `add_p_bursts()`, `add_r_bursts()` and `add_location()` add a column to the original dataframe, which can be analysed later. Make sure to specify column names that don't exist in the original column yet.
+
 ```
 kldf.add_iki(colname="iki")
 print(kldf[["content", "event_for_message_type", "iki"]].head())
@@ -65,6 +66,8 @@ ________________________________________________________________________________
 3    Hell                       0  145.0  
 4   Hello                       0  145.0 
 ```
+
+## Convert to 
 
 # Documentation `keylogging_analysis version 0.0.1`
 
