@@ -15,6 +15,7 @@ import pandas as pd
 import numpy as np
 import warnings
 from pathlib import Path
+import help_functions as hf
 
 
 class KeyLoggingDataFrame(pd.DataFrame):
@@ -284,5 +285,74 @@ class KeyLoggingDataFrame(pd.DataFrame):
         # 5. Set empty iki values to pd.NaT
         merged_df[colname] = pd.to_numeric(merged_df[colname], errors='coerce')
 
+        self.__init__(merged_df)
+        return self
+
+    def add_pause(self, method:str, threshold:float=1000, a:float=2, colname:str="pause", iki_col:str=None, include_first_key:bool=False, include_nontyping_events:bool=False) -> "KeyLoggingDataFrame":
+        """Add a boolean pause column to the dataframe, which contains True when the key event is preceded by a pause and False if it is not. Pauses can be either computed based on a fixed threshold IKI (in milliseconds) or individualized based on the median IKI of each user
+        input:
+            method: str, method to determine pauses: can be "fixed" or "individualized".
+            threshold: float, IKI threshold in milliseconds above which a pause is marked.
+            colname: str, name of the new column to be added (default is 'pause'). Make sure it does not already exist in the dataframe.
+            include_first_key: bool, whether to include the first key event of each message when calculating IKIs (default is False).
+            include_nontyping_events: bool, whether to include non-typing events (event_for_message_type != 0) when calculating IKIs (default is False).
+        output: KeyLoggingDataFrame with new pause column"""
+    
+        # 1. verify parameters
+        if self.empty:
+            raise ValueError("DataFrame is empty. load data first throught load_default_data or load_data_from_path")
+        if not method.isin(["fixed", "individualized"]):
+            raise ValueError("Only 'fixed' and 'individualized' methods are supported.")
+        if method == "fixed":
+            if a:
+                raise AttributeError("Parameter 'a' is only used with method='individualized'")
+            if not isinstance(threshold, (int, float)) or threshold <= 0:
+                raise ValueError("Threshold must be a positive number.")
+        elif method == "individualized":
+            if not isinstance(a, (int, float)):
+                raise ValueError("Parameter 'a' must be a number.")
+            if threshold:
+                raise AttributeError("Parameter 'threshold' is only used with method='fixed'")
+        if "key_time" not in self.columns:
+            raise ValueError("DataFrame must contain 'key_time' column to calculate pauses.")
+        if "message_id" not in self.columns:
+            raise ValueError("DataFrame must contain 'message_id' column to calculate pauses.")
+        if "event_for_message_type" not in self.columns:
+            raise ValueError("ignore_nontyping_events can only be used if 'event_for_message_type' column is present")
+        if colname in self.columns:
+            raise ValueError(f"Column '{colname}' already exists in the DataFrame. Please choose a different name.")
+        if include_nontyping_events is True and include_first_key is False:
+            raise ValueError("include_first_key can only be False if include_nontyping_events is False")
+        if iki_col:
+            if iki_col not in df.columns:
+                raise ValueError(f"IKI column '{iki_col}' not found in DataFrame.")
+            
+        # 2. Make copy of dataframe in self
+        df = self.copy()
+        df = df.sort_values(by=['message_id', 'key_time'])
+
+        # 3. add IKI column if not already present
+        if iki_col is None:
+            iki_col = hf.generate_colname("iki", df.columns)
+            df = df.add_iki(colname=iki_col, include_first_key=include_first_key, include_nontyping_events=include_nontyping_events)
+
+        # indicate pauses
+        if method == "threshold":
+            # select non nan IKI key_ids
+            non_nan_iki = df[df[iki_col].notna()].index()
+            df.loc[non_nan_iki, colname] = df[iki_col] > threshold
+        elif method == "individualized":
+            # get median IKI per user
+            median_iki = df.groupby("user_id")[iki_col].median()
+            median_mad = df.groupby("user_id")[iki_col].mad()
+            # addcolumn with median IKI per user
+            df = df.merge(median_iki.rename("median_iki"), on="user_id", how="left")
+            df = df.merge(median_mad.rename("median_mad"), on="user_id", how="left")
+            # select non nan IKI key_ids
+            non_nan_iki = df[df[iki_col].notna()].index()
+            df.loc[non_nan_iki, colname] = df[iki_col] > df["median_iki"]
+
+        # 4. Merge pause column back into self on key_id
+        merged_df = self.merge(df[['key_id', colname]], on='key_id', how='left')
         self.__init__(merged_df)
         return self

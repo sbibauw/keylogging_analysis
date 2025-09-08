@@ -1,4 +1,22 @@
 
+def generate_colname(base, existing_cols):
+    """
+    input: base name (str), list of existing column names (list of str)
+    output: a new column name that is not in existing_cols, by appending _1, _2, etc. if necessary
+    """
+    if base not in existing_cols:
+        return base
+    else:
+        i = 1
+        new_name = f"{base}{i}"
+        while new_name in existing_cols:
+            i += 1
+            new_name = f"{base}{i}"
+        return new_name
+
+
+print(generate_colname("pause", ["pause", "pause_1", "pause_2"]))
+print(generate_colname("iki", ["pause", "pause_1", "pause_2"]))
 
 def are_ids_unique(df):
     """
