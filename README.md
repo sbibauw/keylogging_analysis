@@ -153,36 +153,36 @@ ________________________________________________________________________________
 
 ## KeyLoggingDataFrame.add_ikis(colname="iki", include_first_key=False, include_nontyping_events=False)
 
-Add a column containing the **Inter-Keystroke Interval (IKI)** to the dataframe. The IKI measures the time difference (in milliseconds) between consecutive key presses within the same message and is used by other methods for computing pauses and writing speed
+> Add a column containing the **Inter-Keystroke Interval (IKI)** to the dataframe. The IKI measures the time difference (in milliseconds) between consecutive key presses within the same message and is used by other methods for computing pauses and writing speed
+>
+> ### input:
+>
+> **colname :** str, default `"iki"`  
+>
+> Name of the new column to be added.  
+> The column name must not already exist in the dataframe.  
+>
+> **include_first_key :** bool, default `False`  
+>
+> - If `False`: the first key of each message is excluded from IKI computation.  
+> - If `True`: the IKI for the first event in a message is computed (the pause before writing).  
+>
+> **include_nontyping_events :** bool, default `False`  
+>
+> - If `False`: only typing events (`event_for_message_type == 0`) are used for IKI computation.  
+> - If `True`: all events are considered when computing IKI (including help requests, consultation of feedback and message sending).  
+>
+> ⚠️ Constraint:  If `include_nontyping_events=True`, then `include_first_key` must also be `True`.  
+>
+>
+> ### output:
+>
+> A `KeyLoggingDataFrame` (same class as the input) with an additional column containing IKI values:  
 
-### input:
-
-**colname :** str, default `"iki"`  
-
-Name of the new column to be added.  
-The column name must not already exist in the dataframe.  
-
-**include_first_key :** bool, default `False`  
-
-- If `False`: the first key of each message is excluded from IKI computation.  
-- If `True`: the IKI for the first event in a message is computed (the pause before writing).  
-
-**include_nontyping_events :** bool, default `False`  
-
-- If `False`: only typing events (`event_for_message_type == 0`) are used for IKI computation.  
-- If `True`: all events are considered when computing IKI (including help requests, consultation of feedback and message sending).  
-
-⚠️ Constraint:  If `include_nontyping_events=True`, then `include_first_key` must also be `True`.  
+> - Each value corresponds to the time difference (in ms) between the current key event and the previous key event (within the same `message_id`).  
+> - Non-applicable events are filled with `NaN`.
 
 
-### output:
-
-A `KeyLoggingDataFrame` (same class as the input) with an additional column containing IKI values:  
-
-- Each value corresponds to the time difference (in ms) between the current key event and the previous key event (within the same `message_id`).  
-- Non-applicable events are filled with `NaN`.
-
-- 
 > ### kldf.add_pauses(threshold, name="pause")
 > Adds a column "pause" to the merged frame, which contains a boolean value indicating whether the event was preceded by a pause or not. The method for defining a pause can be specified under
 

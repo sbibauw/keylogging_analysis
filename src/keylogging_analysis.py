@@ -289,7 +289,8 @@ class KeyLoggingDataFrame(pd.DataFrame):
         return self
 
     def add_pause(self, method:str, threshold:float=1000, a:float=2, colname:str="pause", iki_col:str=None, include_first_key:bool=False, include_nontyping_events:bool=False) -> "KeyLoggingDataFrame":
-        """Add a boolean pause column to the dataframe, which contains True when the key event is preceded by a pause and False if it is not. Pauses can be either computed based on a fixed threshold IKI (in milliseconds) or individualized based on the median IKI of each user
+        """Add a boolean pause column to the dataframe, which contains True when the key event is preceded by a pause and False if it is not. The IKI is set to NaN if there is no IKI available for the event
+        Pauses can be either computed based on a fixed threshold IKI (in milliseconds) or individualized based on the median IKI of each user
         input:
             method: str, method to determine pauses: can be "fixed" or "individualized".
             threshold: float, IKI threshold in milliseconds above which a pause is marked.
