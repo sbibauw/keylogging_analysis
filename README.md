@@ -31,7 +31,7 @@ import keylogging_analysis as ka
 kldf = ka.KeyloggingDataFrame()
 ```
 
-## 2. Loading and preprocess data 
+## 2. Load and preprocess data 
 
 To load the default datasets of either Language Hero or Language Lab into the KeyLoggingDataFrame instance defined in the previous step, use the method `load_default_data()`. The parameter `system` specifies whether to load the default dataset of Language Hero (`"lh"`) or Language Lab (`"ll"`)
 
