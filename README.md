@@ -51,41 +51,138 @@ For Language Hero data only (`system="lh"`), `load_default_data` and `load_data_
 kldf.load_data_from_path(system="ll", path_keys="keys.csv", path_messages="messages.csv", include_anonymized=False, include_nonsense=True, include_native=True)
 ```
 
-## analysis
+## Analysis
 
-
+Besides the standard methods of pandas DataFrames, the class KeyLoggingDataFrames allows for specific methods related to writing process analysis to be performed on the data. The methods `add_iki()`, `add_pause()`, `add_action()` add a column to the original dataframe, which can be analysed later. Mek sure to specify column names that don't exist in the original column yet.
+```
+kldf.add_iki(colname="iki")
+print(kldf[["content", "event_for_message_type", "iki"]].head())
+_____________________________________________________________________________________________________________________________________________
+  content  event_for_message_type   iki
+0       H                       0    NaN  
+1      He                       0  123.0 
+2     Hel                       0  110.0  
+3    Hell                       0  145.0  
+4   Hello                       0  145.0 
+```
 
 # Documentation `keylogging_analysis version 0.0.1`
 
+> ## KeyLoggingDataFrame.load_default_data(system, include_anonymized=None, include_nonsense=None, include_native:bool=None*)
+> 
+> Load the default dataset from Language Hero or Language Lab and preprocess it according to the parameters
+> 
+> ### input:
+> 
+>   **system :** {'lh' or 'll'}
+> 
+> Choose between Language Hero data ('lh') and ('ll')
+>
+>   **include_anonymized :** bool|None, default None
+> 
+> `system = 'lh'`: Sensitive information in the Language Hero data is anonymized as a sequence of '■' characters (Unicode U+25A0). If `include_anonymized` equals `False` or `None`, these data are dropped from the dataframe (default behavior)
+> 
+> `'system = 'll'` : include_anonymized` can only be `None`
+>
+>  **include_nonsense :** bool|None, default None
+> 
+> `system = 'lh'`: If `False` or `None`, keysmashes and character repetitions are dropped from the dataframe (default behavior)
+> 
+> `'system = 'll'` : include_nonsense` can only be `None`
+>
+>  **include_native :** bool|None, default None
+> 
+> `system = 'lh'`:  If `False` or `None`, keylogging data from native speakers are dropped from the dataframe (default behavior)
+> 
+> `'system = 'll'` : include_native` can only be `None`
+>  
+> ### output:
+>
+> dataframe of class KeyLoggingDataFrame (which supports the same functions as `pandas` dataframes, but with additional functions)
 
 
 
-## preprocessing
+> ## KeyLoggingDataFrame.load_data_from_path(system, path_keys, path_messages, include_anonymized=None, include_nonsense=None, include_native:bool=None*)
+> 
+> Initialize the KeyLoggingDataFrame with keys data 
+> 
+> ### input:
+> 
+> **system :** {'lh' or 'll'}
+> 
+> Choose between Language Hero data ('lh') and ('ll'). This is required to make sure the files respect the format of the datasystems. At least the following column names are required in the provided dataframes (additional columns are allowed).
+>
+> - `system = 'lh'` :
+>   - messages : "id", "MESSAGE_TYPE", "transcript", "creationDate", "DIALOGUE_ID"
+>   - keys : "id", "content", "eventForMessageType", "moment", "MESSAGE_ID"
+> - `system = 'll'` :
+>   - messages : "message_id", "id", "content", "created_at", "session_id"
+>   - keys : "id", "message", "date", "message_id"
+>  
+> **path_keys :** str
+>
+> Absolute or relative path to the keys file
+>
+> > **path_keys :** str
+>
+> Absolute or relative path to the messages file
+> 
+> **include_anonymized :** bool|None, default None
+> 
+> `system = 'lh'`: Sensitive information in the Language Hero data is anonymized as a sequence of '■' characters (Unicode U+25A0). If `include_anonymized` equals `False` or `None`, these data are dropped from the dataframe (default behavior)
+> 
+> `'system = 'll'` : include_anonymized` can only be `None`
+>
+>  **include_nonsense :** bool|None, default None
+> 
+> `system = 'lh'`: If `False` or `None`, keysmashes and character repetitions are dropped from the dataframe (default behavior)
+> 
+> `'system = 'll'` : include_nonsense` can only be `None`
+>
+>  **include_native :** bool|None, default None
+> 
+> `system = 'lh'`:  If `False` or `None`, keylogging data from native speakers are dropped from the dataframe (default behavior)
+> 
+> `'system = 'll'` : include_native` can only be `None`
+>  
+> ### output:
+>
+> dataframe of class KeyLoggingDataFrame (which supports the same functions as `pandas` dataframes, but with additional functions). The initial keys and mesages dataframes are merged on the message id column.
 
-> ### load_files(events, messages, conversations)
-> Load the csv files containing the events, messages and conversations and return them as a single merged file
-> input: `events`, `messages`, `conversations` contain the relative or absolute path to the respective.csv files
-> output: merged dataframe of class KeyLoggingDataFrame (which supports the same functions as `pandas` dataframes, but with additional functions
-> warnings: if id's are missing, missing columns), the function only merges on the available subset and issues a warning specifying that the data may be incomplete
-> warnings: if the original dataframes contain double items
 
-> ### kldf.select(users, conversations)???
-> Returns a subset of users or conversations
-> input
-> ??? method to select only native speakers
 
-> ### kldf.remove_nonsense()
-> Removes nonsense messages from the dataset
-> !! adapt model for LL dataset
+## KeyLoggingDataFrame.add_ikis(colname="iki", include_first_key=False, include_nontyping_events=False)
 
-> ### kldf.remove_nontyping()
+Add a column containing the **Inter-Keystroke Interval (IKI)** to the dataframe. The IKI measures the time difference (in milliseconds) between consecutive key presses within the same message and is used by other methods for computing pauses and writing speed
 
-## analysis
+### input:
 
-> ### kldf.add_ikis(name="iki")
-> Add a column "iki" to the merged dataframe, containing for each event the Inter-Keystroke Interval, or the duration between the current and the previous keystroke, expressed in milliseconds.
-> Warning: the function issues a warning if the column "iki" exists already
+**colname :** str, default `"iki"`  
 
+Name of the new column to be added.  
+The column name must not already exist in the dataframe.  
+
+**include_first_key :** bool, default `False`  
+
+- If `False`: the first key of each message is excluded from IKI computation.  
+- If `True`: the IKI for the first event in a message is computed (the pause before writing).  
+
+**include_nontyping_events :** bool, default `False`  
+
+- If `False`: only typing events (`event_for_message_type == 0`) are used for IKI computation.  
+- If `True`: all events are considered when computing IKI (including help requests, consultation of feedback and message sending).  
+
+⚠️ Constraint:  If `include_nontyping_events=True`, then `include_first_key` must also be `True`.  
+
+
+### output:
+
+A `KeyLoggingDataFrame` (same class as the input) with an additional column containing IKI values:  
+
+- Each value corresponds to the time difference (in ms) between the current key event and the previous key event (within the same `message_id`).  
+- Non-applicable events are filled with `NaN`.
+
+- 
 > ### kldf.add_pauses(threshold, name="pause")
 > Adds a column "pause" to the merged frame, which contains a boolean value indicating whether the event was preceded by a pause or not. The method for defining a pause can be specified under
 
