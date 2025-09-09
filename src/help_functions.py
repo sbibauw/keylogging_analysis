@@ -15,9 +15,6 @@ def generate_colname(base, existing_cols):
         return new_name
 
 
-print(generate_colname("pause", ["pause", "pause_1", "pause_2"]))
-print(generate_colname("iki", ["pause", "pause_1", "pause_2"]))
-
 def are_ids_unique(df):
     """
     input: polars dataframe containing a column "id"
