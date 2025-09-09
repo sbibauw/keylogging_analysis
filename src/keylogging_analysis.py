@@ -326,7 +326,6 @@ class KeyLoggingDataFrame(pd.DataFrame):
                 raise ValueError("Parameter 'a' must be a number.")
             if threshold:
                 raise AttributeError("Parameter 'threshold' is only used with method='fixed'")
-            
         if "key_time" not in self.columns:
             raise ValueError("DataFrame must contain 'key_time' column to calculate pauses.")
         if "message_id" not in self.columns:
@@ -348,10 +347,6 @@ class KeyLoggingDataFrame(pd.DataFrame):
         df = df.sort_values(by=['message_id', 'key_time'])
 
         # 3. add IKI column if not already present
-        if iki_colname is None:
-            iki_colname = hf.generate_colname("iki", df.columns)
-            df.add_iki(colname=iki_colname, include_first_key=include_first_key, include_nontyping_events=include_nontyping_events)
-
         # indicate pauses
         if method == "fixed":
             # select non nan IKI key_ids
@@ -381,4 +376,47 @@ class KeyLoggingDataFrame(pd.DataFrame):
         merged_df = self.merge(df[['key_id', colname]], on='key_id', how='left')
         self.__init__(merged_df)
         return self
+
+    def add_pburst(self, colname:str=None, pause_colname:str=None, pause_method:str="fixed", pause_threshold:float=None, pause_a:float=None, iki_colname:str=None) -> "KeyLoggingDataFrame":
+        """Add a boolean pburst column to the dataframe, which contains True when the key event is part of a pause burst and False if it is not. A pause burst is defined as a sequence of at least two consecutive key events that are each preceded by a pause.
+        input:
+            colname: str, name of the new column to be added (default is 'pburst'). Make sure it does not already exist in the dataframe.
+            pause_colname: str, name of the column containing pause information (default is 'pause').
+        output: KeyLoggingDataFrame with new pburst column"""
         
+        # 1. verify parameters
+        if self.empty:
+            raise ValueError("DataFrame is empty. load data first throught load_default_data or load_data_from_path")
+        if "key_time" not in self.columns:
+            raise ValueError("DataFrame must contain 'key_time' column to calculate pbursts.")
+        if "message_id" not in self.columns:
+            raise ValueError("DataFrame must contain 'message_id' column to calculate pbursts.")
+        if pause_colname and pause_colname not in self.columns:
+            
+        if not pd.api.types.is_bool_dtype(self[pause_colname]) and not pd.api.types.is_integer_dtype(self[pause_colname]) and not pd.api.types.is_float_dtype(self[pause_colname]):
+            raise ValueError(f"Pause column '{pause_colname}' must be of boolean or numeric dtype.")
+        if not colname:
+            colname = hf.generate_colname("pburst", self.columns)
+        if colname in self.columns:
+            raise ValueError(f"Column '{colname}' already exists in the DataFrame. Please choose a different name.")
+
+        # 2. Make copy of dataframe in self
+        df = self.copy()
+        df = df.sort_values(by=['message_id', 'key_time'])
+
+        # 3. create pause column if not already present
+        if pause_colname is None:
+            pause_colname = hf.generate_colname("pause", df.columns)
+            df.add_pause(colname=pause_colname, method=pause_method, threshold=pause_threshold, a=pause_a, iki_colname=iki_colname, include_first_key=True, include_nontyping_events=False)
+
+                # Create pburst column: 'B' if pause is True or event is first character of message, 'I' if pause is False, 'O' if pause is NaN
+        # Assume 'colname' is the pause column
+        # Find first character indices for each message (typing events only)
+        first_characters = df[df["event_for_message_type"] == 0].sort_values(by=["message_id", "key_time"]).groupby("message_id").head(1).index
+        df["pburst"] = "O"  # default to 'O' (other/NaN)
+        df.loc[df[pause_colname] == False, "pburst"] = "I"
+        df.loc[df[pause_colname] == True, "pburst"] = "B"
+        df.loc[first_characters, "pburst"] = "B"
+        if iki_colname is None:
+            iki_colname = hf.generate_colname("iki", df.columns)
+            df.add_iki(colname=iki_colname, include_first_key=include_first_key, include_nontyping_events=include_nontyping_events)
