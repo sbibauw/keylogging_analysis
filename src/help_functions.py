@@ -47,3 +47,30 @@ def all_of_first_in_last(col1, col2):
     col1 = col1.unique()
     col2 = col2.unique()
     return col1.is_in(col2).all()
+
+def detect_action(curr, prev):
+    """input: two strings, the current and previous content of a message
+    output: 0 = "addition", 1 = "deletion", 2 = "substitution" or 3 = "no change"
+    Handle NA/None values by converting them to empty strings.
+    """
+    # Handle NA/None values
+    curr = "" if pd.isna(curr) else str(curr)
+    prev = "" if pd.isna(prev) else str(prev)
+    
+    if len(curr) > len(prev):
+        return 0
+    if curr == prev:
+        return 3
+    else:  # differ between deletion and substitution
+        # Find first position in which curr and prev differ: i
+        i = 0
+        while i < min(len(curr), len(prev)) and curr[i] == prev[i]:
+            i += 1
+
+        # how many characters are there in curr after the first different character
+        curr_after = len(curr) - i
+
+        if curr[i:] == prev[len(prev)-curr_after:]:
+            return 1
+        else:
+            return 2
