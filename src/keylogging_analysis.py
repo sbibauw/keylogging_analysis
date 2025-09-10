@@ -16,6 +16,7 @@ import numpy as np
 import warnings
 from pathlib import Path
 from src import help_functions as hf
+import polars as pl
 
 
 class KeyLoggingDataFrame(pd.DataFrame):
@@ -424,8 +425,9 @@ class KeyLoggingDataFrame(pd.DataFrame):
             raise e
 
     def add_action(self, colname:str=None):
-        
-        # 1. verify parameters
+        """
+        Add an action column to the dataframe, which contains the action performed with each key event. Actions can be "addition", "deletion", "modification" or "no change".
+        """# 1. verify parameters
         if self.empty:
             raise ValueError("DataFrame is empty. load data first throught load_default_data or load_data_from_path")
         if "event_for_message_type" not in self.columns:
@@ -441,18 +443,70 @@ class KeyLoggingDataFrame(pd.DataFrame):
         df = self.copy()
         df = df.sort_values(by=['message_id', 'key_time'])
 
-        # add a columns "previous_content", which contains the content of the preevious event of the message. Contains an empty string if the event is the first event of the message
+        # 3. select edits
+        df["event_for_message_type"] = pd.to_numeric(df["event_for_message_type"])
+        df = df[df['event_for_message_type'] == 0]
+  
+        # add a columns "previous_content", which contains the content of the previous event of the message. Contains an empty string if the event is the first event of the message
         df["previous_content"] = df["content"].shift(1)
+        df["previous_message_id"] = df["message_id"].shift(1)
+
+        # add action using pandas apply
+        df['action'] = df.apply(
+            lambda row: hf.detect_action(row['content'], row['previous_content']),
+            axis=1
+        )
+
+        # set action to NaN if different messages
+        df.loc[df['message_id'] != df['previous_message_id'], 'action'] = None
+
+
+        # 4. Merge action column back into self on key_id
+        merged_df = self.merge(df[['key_id', 'action']], on='key_id', how='left')
+        self.__init__(merged_df)
+        return self
+    
+    def add_range(self, colname:str=None):
+        """
+        Add 4 columns to the dataframe which indicate the range of the event: start_deletion, end_deletion, start_addition, end_addition
+        """
+        # 1. verify parameters
+        if self.empty:
+            raise ValueError("DataFrame is empty. load data first throught load_default_data or load_data_from_path")
+        if "action" not in self.columns:
+            raise ValueError("DataFrame must contain 'action' column to calculate ranges. Use add_action() to add this column.")
+        if "content" not in self.columns:
+            raise ValueError("DataFrame must contain 'content' column to calculate ranges.")
+        if not colname:
+            colname = hf.generate_colname("range", self.columns)
+        elif colname in self.columns:
+            raise ValueError(f"Column '{colname}' already exists in the DataFrame. Please choose a different name.")
         
+        # 2. copy df
+        df = self.copy()
+        df = df.sort_values(by=['message_id', 'key_time'])
 
-# remove the last event of each message (contains null value)
-events_df = events_df.filter(
-    pl.col("moment").rank("dense", descending = True).over("MESSAGE_ID") > 1
-)
+        # 3. select edits only
+        df["event_for_message_type"] = pd.to_numeric(df["event_for_message_type"])
+        df = df[df['event_for_message_type'] == 0]
+  
+        # add a columns "previous_content", which contains the content of the previous event of the message. Contains an empty string if the event is the first event of the message
+        df["previous_content"] = df["content"].shift(1)
+        df["previous_message_id"] = df["message_id"].shift(1)
 
-# indicate whether an event is an addition, deletion, modification or other action
-events_df = events_df.with_columns([
-    pl.struct(["content", "previous_content"]).map_elements(
-        lambda row: detect_action(row["content"], row["previous_content"])
-    ).alias("action")
+        # add range using pandas apply
+        ranges = df.apply(
+            lambda row: hf.detect_range(row['content'], row['previous_content'], row['action']),
+            axis=1
+        )
+        df[['start_deletion', 'end_deletion', 'start_addition', 'end_addition']] = pd.DataFrame(ranges.tolist(), index=df.index)
+
+        # set range to NaN if different messages
+        df.loc[df['message_id'] != df['previous_message_id'], ['start_deletion', 'end_deletion', 'start_addition', 'end_addition']] = None
+
+        # 4. Merge range columns back into self on key_id
+        merged_df = self.merge(df[['key_id', 'start_deletion', 'end_deletion', 'start_addition', 'end_addition']], on='key_id', how='left')
+        self.__init__(merged_df)
+        return self
+
         

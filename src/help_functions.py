@@ -1,3 +1,4 @@
+import pandas as pd 
 
 def generate_colname(base, existing_cols):
     """
@@ -58,9 +59,9 @@ def detect_action(curr, prev):
     prev = "" if pd.isna(prev) else str(prev)
     
     if len(curr) > len(prev):
-        return 0
+        return "addition"
     if curr == prev:
-        return 3
+        return "no change"
     else:  # differ between deletion and substitution
         # Find first position in which curr and prev differ: i
         i = 0
@@ -71,6 +72,47 @@ def detect_action(curr, prev):
         curr_after = len(curr) - i
 
         if curr[i:] == prev[len(prev)-curr_after:]:
-            return 1
+            return "deletion"
         else:
-            return 2
+            return "substitution"
+        
+def detect_start_deletion_span(curr, prev, action):
+    """input: two strings, the current and previous content of a message
+    output: 
+            for deletion: position of first deleted character in prev
+            for addition: None
+            for substitution: position of substituted character in prev
+            for no change: None"""
+    if not curr:
+        curr = ""
+    if not prev:
+        prev = ""
+    if curr == prev:
+        return None
+    if action in ["no change", "addition", None]:
+        return None
+    i = 0
+    while i < min(len(curr), len(prev)) and curr[i] == prev[i]:
+            i += 1
+    return i
+
+def detect_start_addition_span(curr, prev, action):
+    """input: two strings, the current and previous content of a message
+    output: 
+            for addition: position of first added character in curr
+            for deletion: position of first deleted character in prev
+            for substitution: position of substituted character in curr
+            for no change: -1"""
+    if not curr:
+        curr = ""
+    if not prev:
+        prev = ""
+    if curr == prev:
+        return None
+    if action in ["no change", "deletion", None]:
+        return None
+    i = 0
+    while i < min(len(curr), len(prev)) and curr[i] == prev[i]:
+            i += 1
+    return i
+
