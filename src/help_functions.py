@@ -76,19 +76,18 @@ def detect_action(curr, prev):
         else:
             return "substitution"
         
-def detect_start_deletion_span(curr, prev, action):
+def detect_start_deletion_span(curr, prev):
     """input: two strings, the current and previous content of a message
     output: 
             for deletion: position of first deleted character in prev
             for addition: None
             for substitution: position of substituted character in prev
             for no change: None"""
-    if not curr:
-        curr = ""
-    if not prev:
-        prev = ""
+    curr = "" if pd.isna(curr) else str(curr)
+    prev = "" if pd.isna(prev) else str(prev)
     if curr == prev:
         return None
+    action = detect_action(curr, prev)
     if action in ["no change", "addition", None]:
         return None
     i = 0
@@ -96,23 +95,72 @@ def detect_start_deletion_span(curr, prev, action):
             i += 1
     return i
 
-def detect_start_addition_span(curr, prev, action):
+def detect_start_addition_span(curr, prev):
     """input: two strings, the current and previous content of a message
     output: 
             for addition: position of first added character in curr
             for deletion: position of first deleted character in prev
             for substitution: position of substituted character in curr
             for no change: -1"""
-    if not curr:
-        curr = ""
-    if not prev:
-        prev = ""
+    curr = "" if pd.isna(curr) else str(curr)
+    prev = "" if pd.isna(prev) else str(prev)
     if curr == prev:
         return None
+    action = detect_action(curr, prev)
     if action in ["no change", "deletion", None]:
         return None
     i = 0
     while i < min(len(curr), len(prev)) and curr[i] == prev[i]:
             i += 1
     return i
+
+def detect_end_addition_span(curr, prev):
+    """input: two strings, the current and previous content of a message
+    output: 
+            for addition: position of last added character in curr
+            for deletion: position of last deleted character in prev
+            for substitution: position of last substituted character in curr
+            for no change: -1"""
+    curr = "" if pd.isna(curr) else str(curr)
+    prev = "" if pd.isna(prev) else str(prev)
+    if curr == prev:
+        return None
+    action = detect_action(curr, prev)
+    if action in ["no change", "deletion", None]:
+        return None
+    j1 = len(curr)
+    j2 = len(prev)
+    while j1 > 0 and j2 > 0 and curr[j1-1] == prev[j2-1]:
+        j1 -= 1
+        j2 -= 1
+    return j1
+
+def detect_end_deletion_span(curr, prev):
+    """input: two strings, the current and previous content of a message
+    output: 
+            for deletion: position of last deleted character in prev
+            for addition: None
+            for substitution: position of last substituted character in prev
+            for no change: None"""
+    curr = "" if pd.isna(curr) else str(curr)
+    prev = "" if pd.isna(prev) else str(prev)
+    if curr == prev:
+        return None
+    action = detect_action(curr, prev)
+    if action in ["no change", "addition", None]:
+        return None
+    j1 = len(curr)
+    j2 = len(prev)
+    while j1 > 0 and j2 > 0 and curr[j1-1] == prev[j2-1]:
+        j1 -= 1
+        j2 -= 1
+    return j2
+
+curr = "abcd"
+prev = "abc"
+print(detect_action(curr, prev))
+print(detect_start_deletion_span(curr, prev))
+print(detect_end_deletion_span(curr, prev))
+print(detect_start_addition_span(curr, prev))
+print(detect_end_addition_span(curr, prev))
 

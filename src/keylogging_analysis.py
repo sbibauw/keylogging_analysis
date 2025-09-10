@@ -466,22 +466,29 @@ class KeyLoggingDataFrame(pd.DataFrame):
         self.__init__(merged_df)
         return self
     
-    def add_range(self, colname:str=None):
+    def add_span(self, colnames:list=[None, None, None, None], selection=[True,True,True,True]):
         """
         Add 4 columns to the dataframe which indicate the range of the event: start_deletion, end_deletion, start_addition, end_addition
         """
         # 1. verify parameters
         if self.empty:
             raise ValueError("DataFrame is empty. load data first throught load_default_data or load_data_from_path")
-        if "action" not in self.columns:
+        if "event_for_message_type" not in self.columns:
             raise ValueError("DataFrame must contain 'action' column to calculate ranges. Use add_action() to add this column.")
         if "content" not in self.columns:
             raise ValueError("DataFrame must contain 'content' column to calculate ranges.")
-        if not colname:
-            colname = hf.generate_colname("range", self.columns)
-        elif colname in self.columns:
-            raise ValueError(f"Column '{colname}' already exists in the DataFrame. Please choose a different name.")
-        
+        if not colnames:
+            colnames = []
+            for base in ["start_deletion_span", "end_deletion_span", "start_addition_span", "end_addition_span"]:
+                colname.append(hf.generate_colname(base, self.columns))
+        elif not isinstance(colnames, list) or len(colnames) != 4:
+            raise ValueError("colnames must be a list of 4 strings (or None).")
+        else:
+            for colname in colnames:
+                if colname in self.columns:
+                    raise ValueError(f"Column '{colname}' already exists in the DataFrame. Please choose a different name.")
+                
+
         # 2. copy df
         df = self.copy()
         df = df.sort_values(by=['message_id', 'key_time'])
@@ -495,18 +502,87 @@ class KeyLoggingDataFrame(pd.DataFrame):
         df["previous_message_id"] = df["message_id"].shift(1)
 
         # add range using pandas apply
-        ranges = df.apply(
-            lambda row: hf.detect_range(row['content'], row['previous_content'], row['action']),
-            axis=1
-        )
-        df[['start_deletion', 'end_deletion', 'start_addition', 'end_addition']] = pd.DataFrame(ranges.tolist(), index=df.index)
+        if selection[0]:
+            df[colnames[0]] = df.apply(
+                lambda row: hf.detect_start_deletion_span(row['content'], row['previous_content']),
+                axis=1
+            )
+        if selection[1]:
+            df[colnames[1]] = df.apply(
+                lambda row: hf.detect_end_deletion_span(row['content'], row['previous_content']),
+                axis=1
+            )
+        if selection[2]:
+            df[colnames[2]] = df.apply(
+                lambda row: hf.detect_start_addition_span(row['content'], row['previous_content']),
+                axis=1
+            )
+        if selection[3]:
+            df[colnames[3]] = df.apply(
+                lambda row: hf.detect_end_addition_span(row['content'], row['previous_content']),
+                axis=1
+            )
 
-        # set range to NaN if different messages
-        df.loc[df['message_id'] != df['previous_message_id'], ['start_deletion', 'end_deletion', 'start_addition', 'end_addition']] = None
 
-        # 4. Merge range columns back into self on key_id
-        merged_df = self.merge(df[['key_id', 'start_deletion', 'end_deletion', 'start_addition', 'end_addition']], on='key_id', how='left')
+        # set spans to NaN if different messages
+        df.loc[df['message_id'] != df['previous_message_id'], ['start_deletion_span', 'end_deletion_span', 'start_addition_span', 'end_addition_span']] = None
+
+        # 4. Merge action column back into self on key_id
+        merged_df = self.merge(df[['key_id', 'start_deletion_span', 'end_deletion_span', 'start_addition_span', 'end_addition_span']], on='key_id', how='left')
         self.__init__(merged_df)
         return self
 
+    def add_length(self, colnames:list=[None, None], selection=[True, True]) -> "KeyLoggingDataFrame":
+        """
+        Add 2 columns to the dataframe which indicate the length of the the deleted sequence and the length of the added sequence
+        """
+        # 1. verify parameters
+        if self.empty:
+            raise ValueError("DataFrame is empty. load data first throught load_default_data or load_data_from_path")
+        if "event_for_message_type" not in self.columns:
+            raise ValueError("DataFrame must contain 'event_for_message_type' column to calculate lengths.")
+        if "content" not in self.columns:
+            raise ValueError("DataFrame must contain 'content' column to calculate lengths.")
+        if not colnames:
+            colnames = []
+            for base in ["length_deletion", "length_addition"]:
+                colname.append(hf.generate_colname(base, self.columns))
+        elif not isinstance(colnames, list) or len(colnames) != 2:
+            raise ValueError("colnames must be a list of 2 strings (or None).")
+        else:
+            for colname in colnames:
+                if colname in self.columns:
+                    raise ValueError(f"Column '{colname}' already exists in the DataFrame. Please choose a different name.")
+                
+        # 2. copy df
+        df = self.copy()
+        df = df.sort_values(by=['message_id', 'key_time'])
+
+        # 3. select edits only
+        df["event_for_message_type"] = pd.to_numeric(df["event_for_message_type"])
+        df = df[df['event_for_message_type'] == 0]
+
+        #
+        if selection[0]: # deletion length
+            # get deletion span
+            startcol = hf.generate_colname("start_deletion_span", df.columns)
+            endcol = hf.generate_colname("end_deletion_span", df.columns)
+            df.add_span(colnames=[startcol, endcol, None, None], selection=[True, True, False, False])
+            # calculate length
+            df[colnames[0]] = df[endcol] - df[startcol]
         
+        if selection[1]: # addition length
+            # get addition span
+            startcol = hf.generate_colname("start_addition_span", df.columns)
+            endcol = hf.generate_colname("end_addition_span", df.columns)
+            df.add_span(colnames=[None, None, startcol, endcol], selection=[False, False, True, True])
+            # calculate length
+            df[colnames[1]] = df[endcol] - df[startcol]
+        
+        # 4. Merge action column back into self on key_id
+        merged_df = self.merge(df[['key_id', 'length_deletion', 'length_addition']], on='key_id', how='left')
+        self.__init__(merged_df)
+        return self
+    
+    def add_rburst():
+        pass
