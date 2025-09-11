@@ -586,3 +586,65 @@ class KeyLoggingDataFrame(pd.DataFrame):
     
     def add_rburst():
         pass
+
+    def pburst_analysis(self, pburst_colname:str=None, pause_method:str=None, pause_threshold:float=None, pause_a:float=None, iki_colname:str=None) -> "KeyLoggingDataFrame" :
+        # verify parameters
+        if not pburst_colname and not pause_method:
+            raise ValueError("Either pburst_colname or pause_method must be specified.")
+        if pburst_colname and (pause_method or pause_threshold or pause_a):
+            raise ValueError("If pburst_colname is specified, pause_method, pause_threshold and pause_a must be None.")
+        if pburst_colname and pburst_colname not in self.columns:
+            raise ValueError(f"Pburst column '{pburst_colname}' not found in DataFrame.")
+        
+        # add pburst column if necessary
+        if not pburst_colname:
+            pburst_colname = hf.generate_colname("pburst", self.columns)
+            self.add_pburst(colname=pburst_colname, method=pause_method, threshold=pause_threshold, a=pause_a, iki_colname=iki_colname, include_first_key=True, include_nontyping_events=False)
+            print(f"Added pburst column '{pburst_colname}' using method '{pause_method}'")
+
+        # 
+
+    def pause_analysis(self, pause_colname:str=None, iki_colname:str=None) -> pd.DataFrame:
+        # verify parameters
+        if not pause_colname:
+            pause_colname = hf.generate_colname("pause", self.columns)
+        if pause_colname not in self.columns:
+            raise ValueError(f"Pause column '{pause_colname}' not found in DataFrame.")
+        if not pd.api.types.is_bool_dtype(self[pause_colname]) and not pd.api.types.is_integer_dtype(self[pause_colname]) and not pd.api.types.is_float_dtype(self[pause_colname]):
+            raise ValueError(f"Pause column '{pause_colname}' must be of boolean or numeric dtype.")
+
+        df = self.copy()
+        df["event_for_message_type"] = pd.to_numeric(df["event_for_message_type"])
+        df["iki"] = pd.to_numeric(df["iki"], errors='coerce')
+        df = df[df['event_for_message_type'] == 0]  # consider only typing events
+
+        # calculate summary statistics
+        nb_keys = len(df)
+        nb_pauses = df[pause_colname].sum()
+        percentage_pauses_per_keys = nb_pauses / nb_keys * 100 if nb_keys > 0 else None
+        total_duration = df[iki_colname].sum()
+        pause_duration = df.loc[df[pause_colname] == True, iki_colname].sum()
+        percentage_pause_duration = pause_duration / total_duration * 100 if total_duration > 0 else None
+        avg_pause_length = df.loc[df[pause_colname] == True, iki_colname].mean()
+        std_pause_length = df.loc[df[pause_colname] == True, iki_colname].std()
+        median_pause_length = df.loc[df[pause_colname] == True, iki_colname].median()
+        mad_pause_length = (df.loc[df[pause_colname] == True, iki_colname] - df.loc[df[pause_colname] == True, iki_colname].median()).abs().median()
+        max_pause_length = df.loc[df[pause_colname] == True, iki_colname].max()
+        min_pause_length = df.loc[df[pause_colname] == True, iki_colname].min()
+
+        # create summary dataframe
+        metrics = {
+            "nb_pauses": int(nb_pauses) if pd.notna(nb_pauses) else None,
+            "percentage_pauses_per_keys": round(percentage_pauses_per_keys,3) if pd.notna(percentage_pauses_per_keys) else None,
+            "total_pause_duration": int(pause_duration) if pd.notna(pause_duration) else None,
+            "percentage_pause_duration": round(percentage_pause_duration,3) if pd.notna(percentage_pause_duration) else None,
+            "avg_pause_length": round(avg_pause_length,3) if pd.notna(avg_pause_length) else None,
+            "std_pause_length": round(std_pause_length,3) if pd.notna(std_pause_length) else None,
+            "median_pause_length": int(median_pause_length) if pd.notna(median_pause_length) else None,
+            "mad_pause_length": int(mad_pause_length) if pd.notna(mad_pause_length) else None,
+            "max_pause_length": int(max_pause_length) if pd.notna(max_pause_length) else None,
+            "min_pause_length": int(min_pause_length) if pd.notna(min_pause_length) else None
+        }
+        metrics = pd.DataFrame([metrics])
+        return metrics
+        

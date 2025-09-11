@@ -156,11 +156,4 @@ def detect_end_deletion_span(curr, prev):
         j2 -= 1
     return j2
 
-curr = "abcd"
-prev = "abc"
-print(detect_action(curr, prev))
-print(detect_start_deletion_span(curr, prev))
-print(detect_end_deletion_span(curr, prev))
-print(detect_start_addition_span(curr, prev))
-print(detect_end_addition_span(curr, prev))
 
