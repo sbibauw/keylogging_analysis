@@ -305,77 +305,79 @@ class KeyLoggingDataFrame(pd.DataFrame):
             include_first_key: bool, whether to include the first key event of each message when calculating IKIs (default is False).
             include_nontyping_events: bool, whether to include non-typing events (event_for_message_type != 0) when calculating IKIs (default is False).
         output: KeyLoggingDataFrame with new pause column"""
-    
-        # 1. verify parameters
-        if self.empty:
-            raise ValueError("DataFrame is empty. load data first throught load_default_data or load_data_from_path")
-        if not method in ["fixed", "individualized"]:
-            raise ValueError("Only 'fixed' and 'individualized' methods are supported.")
-        if method == "fixed":
-            if a:
-                raise AttributeError("Parameter 'a' is only used with method='individualized'")
-            if not threshold:
-                threshold = 1000
-                print("No threshold specified, using default of 1000 ms")
-            if not isinstance(threshold, (int, float)) or threshold <= 0:
-                raise ValueError("Threshold must be a positive number.")
-        elif method == "individualized":
-            if a is None:
-                a = 2
-                print("No 'a' value specified, using default of 2")
-            if not isinstance(a, (int, float)):
-                raise ValueError("Parameter 'a' must be a number.")
-            if threshold:
-                raise AttributeError("Parameter 'threshold' is only used with method='fixed'")
-        if "key_time" not in self.columns:
-            raise ValueError("DataFrame must contain 'key_time' column to calculate pauses.")
-        if "message_id" not in self.columns:
-            raise ValueError("DataFrame must contain 'message_id' column to calculate pauses.")
-        if "event_for_message_type" not in self.columns:
-            raise ValueError("ignore_nontyping_events can only be used if 'event_for_message_type' column is present")
-        if not colname:
-            colname = hf.generate_colname("pause", self.columns)
-        if colname in self.columns:
-            raise ValueError(f"Column '{colname}' already exists in the DataFrame. Please choose a different name.")
-        if include_nontyping_events is True and include_first_key is False:
-            raise ValueError("include_first_key can only be False if include_nontyping_events is False")
-        if iki_colname and iki_colname not in self.columns:
-                raise ValueError(f"IKI column '{iki_colname}' not found in DataFrame.")
+        try:
+            # 1. verify parameters
+            if self.empty:
+                raise ValueError("DataFrame is empty. load data first throught load_default_data or load_data_from_path")
+            if not method in ["fixed", "individualized"]:
+                raise ValueError("Only 'fixed' and 'individualized' methods are supported.")
+            if method == "fixed":
+                if a:
+                    raise AttributeError("Parameter 'a' is only used with method='individualized'")
+                if not threshold:
+                    threshold = 1000
+                    print("No threshold specified, using default of 1000 ms")
+                if not isinstance(threshold, (int, float)) or threshold <= 0:
+                    raise ValueError("Threshold must be a positive number.")
+            elif method == "individualized":
+                if a is None:
+                    a = 2
+                    print("No 'a' value specified, using default of 2")
+                if not isinstance(a, (int, float)):
+                    raise ValueError("Parameter 'a' must be a number.")
+                if threshold:
+                    raise AttributeError("Parameter 'threshold' is only used with method='fixed'")
+            if "key_time" not in self.columns:
+                raise ValueError("DataFrame must contain 'key_time' column to calculate pauses.")
+            if "message_id" not in self.columns:
+                raise ValueError("DataFrame must contain 'message_id' column to calculate pauses.")
+            if "event_for_message_type" not in self.columns:
+                raise ValueError("ignore_nontyping_events can only be used if 'event_for_message_type' column is present")
+            if not colname:
+                colname = hf.generate_colname("pause", self.columns)
+            if colname in self.columns:
+                raise ValueError(f"Column '{colname}' already exists in the DataFrame. Please choose a different name.")
+            if include_nontyping_events is True and include_first_key is False:
+                raise ValueError("include_first_key can only be False if include_nontyping_events is False")
+            if iki_colname and iki_colname not in self.columns:
+                    raise ValueError(f"IKI column '{iki_colname}' not found in DataFrame.")
+                
+            # 2. Make copy of dataframe in self
+            df = self.copy()
+            df = df.sort_values(by=['message_id', 'key_time'])
+
+            # 3. add IKI column if not already present
+            # indicate pauses
+            if method == "fixed":
+                # select non nan IKI key_ids
+                non_nan_iki = df[df[iki_colname].notna()].index
+                df[colname] = np.nan
+                df[colname] = df[colname].astype("boolean")
+                df.loc[non_nan_iki, colname] = df.loc[non_nan_iki, iki_colname] > threshold
             
-        # 2. Make copy of dataframe in self
-        df = self.copy()
-        df = df.sort_values(by=['message_id', 'key_time'])
+            elif method == "individualized":
+                # get median IKI per user
+                median_iki = df.groupby("user_id")[iki_colname].median()
+                median_mad = df.groupby("user_id")[iki_colname].apply(lambda x: (x - x.median()).abs().median())
+                # addcolumn with median IKI per user
+                df = df.merge(median_iki.rename("median_iki"), on="user_id", how="left")
+                df = df.merge(median_mad.rename("median_mad"), on="user_id", how="left")
+                # select non nan IKI key_ids
+                non_nan_iki = df[df[iki_colname].notna()].index
+                df.loc[non_nan_iki, "individualized_threshold"] = df.loc[non_nan_iki, "median_iki"] + a * df.loc[non_nan_iki, "median_mad"]
+                df[colname] = np.nan
+                df[colname] = df[colname].astype("boolean")
+                df.loc[non_nan_iki, colname] = df.loc[non_nan_iki, iki_colname] > df.loc[non_nan_iki, "individualized_threshold"]
+                print("1.", df)
 
-        # 3. add IKI column if not already present
-        # indicate pauses
-        if method == "fixed":
-            # select non nan IKI key_ids
-            non_nan_iki = df[df[iki_colname].notna()].index
-            df[colname] = np.nan
-            df[colname] = df[colname].astype("boolean")
-            df.loc[non_nan_iki, colname] = df.loc[non_nan_iki, iki_colname] > threshold
-        
-        elif method == "individualized":
-            # get median IKI per user
-            median_iki = df.groupby("user_id")[iki_colname].median()
-            median_mad = df.groupby("user_id")[iki_colname].apply(lambda x: (x - x.median()).abs().median())
-            # addcolumn with median IKI per user
-            df = df.merge(median_iki.rename("median_iki"), on="user_id", how="left")
-            df = df.merge(median_mad.rename("median_mad"), on="user_id", how="left")
-            # select non nan IKI key_ids
-            non_nan_iki = df[df[iki_colname].notna()].index
-            df.loc[non_nan_iki, "individualized_threshold"] = df.loc[non_nan_iki, "median_iki"] + a * df.loc[non_nan_iki, "median_mad"]
-            df[colname] = np.nan
-            df[colname] = df[colname].astype("boolean")
-            df.loc[non_nan_iki, colname] = df.loc[non_nan_iki, iki_colname] > df.loc[non_nan_iki, "individualized_threshold"]
-            print("1.", df)
-
-        # 4. Merge pause column back into self on key_id
-        #print(df.head())
-        #print(self.head())
-        merged_df = self.merge(df[['key_id', colname]], on='key_id', how='left')
-        self.__init__(merged_df)
-        return self
+            # 4. Merge pause column back into self on key_id
+            #print(df.head())
+            #print(self.head())
+            merged_df = self.merge(df[['key_id', colname]], on='key_id', how='left')
+            self.__init__(merged_df)
+            return self
+        except Exception as e:
+            raise e
 
     def add_pburst(self, colname:str=None, pause_colname:str=None, pause_method:str=None, pause_threshold:float=None, pause_a:float=None, iki_colname:str=None) -> "KeyLoggingDataFrame":
         """Add a boolean pburst column to the dataframe, which contains True when the key event is part of a pause burst and False if it is not. A pause burst is defined as a sequence of at least two consecutive key events that are each preceded by a pause.
@@ -387,7 +389,7 @@ class KeyLoggingDataFrame(pd.DataFrame):
             # 1. verify parameters
             if self.empty:
                 raise ValueError("DataFrame is empty. Load data first throught load_default_data or load_data_from_path")
-            if not "key_time" not in self.columns:
+            if "key_time" not in self.columns:
                 raise ValueError("DataFrame must contain 'key_time' column to calculate pbursts.")
             if "message_id" not in self.columns:
                 raise ValueError("DataFrame must contain 'message_id' column to calculate pbursts.")
@@ -397,15 +399,17 @@ class KeyLoggingDataFrame(pd.DataFrame):
                 colname = hf.generate_colname("pburst", self.columns)
             if colname in self.columns:
                 raise ValueError(f"Column '{colname}' already exists in the DataFrame. Please choose a different name.")
-
+            
+                
             # 2. Make copy of dataframe in self
             df = self.copy()
             df = df.sort_values(by=['message_id', 'key_time'])
 
             # 3. create pause column if not already present
-            if pause_colname is None:
-                pause_colname = hf.generate_colname("pause", df.columns)
-                df.add_pause(colname=None, method=pause_method, threshold=pause_threshold, a=pause_a, iki_colname=iki_colname, include_first_key=True, include_nontyping_events=False)
+            if pause_method is not None:
+                if pause_colname is None:
+                    pause_colname = hf.generate_colname("pause", df.columns)
+                df.add_pause(colname=pause_colname, method=pause_method, threshold=pause_threshold, a=pause_a, iki_colname=iki_colname, include_first_key=True, include_nontyping_events=False)
 
             # Create pburst column
             first_characters = df[df["event_for_message_type"] == 0].sort_values(by=["message_id", "key_time"]).groupby("message_id").head(1).index
@@ -585,28 +589,29 @@ class KeyLoggingDataFrame(pd.DataFrame):
         return self
     
 
-    def burst_dataframe(self, burst_colname:str=None, action_colname:str=None, iki_colname:str=None) -> pd.DataFrame:
+    def burst_dataframe(self, burst_colname:str=None, iki_colname:str=None) -> pd.DataFrame:
         """Returns a dataframe containing the character length and duration of each burst in the KeyLoggingDataFrame.
         input: self is a KeyLoggingDataFrame 
             burst_colname: str, name of the column containing burst tags in IOB format (generated with add_pburst or add_rburst)
         output: pd.DataFrame with one row per burst and columns: burst_id, message_id, user_id, session_id, start_time, end_time, duration, length
         """
+        # verify parameters
         if not burst_colname:
-            burst_colname = hf.generate_colname("burst", self.columns)
+            raise ValueError("Burst column name must be specified.")
         if burst_colname not in self.columns:
             raise ValueError(f"Burst column '{burst_colname}' not found in DataFrame.")
+        if not iki_colname:
+            raise ValueError("IKI column name must be specified.")
+        if iki_colname not in self.columns:
+            raise ValueError(f"IKI column '{iki_colname}' not found in DataFrame.")
+        if self.empty:
+            return pd.DataFrame()  # return empty dataframe if self is empty
 
-
-        bursts_df = pd.DataFrame(columns=['message_id', 'burst_nb', "nonsense",'length', 'longest_token_length', 'nb_identical_characters', 'median_IKI', 'lowest_IKI', 'perplexity'])
-        for message_id in indexes:
-            events_message = events[events['MESSAGE_ID'] == message_id]
-            if not events_message.empty:
-                burst = get_burst_metrics(events_message, ngram_models=models, lambdas=lambdas, valid_chars=valid_chars)
-                nonsense = data.loc[message_id,"nonsense"]
-                burst['nonsense'] = nonsense
-                bursts_df = pd.concat([bursts_df, burst], ignore_index=True)
-                
-
+        events_df = self.copy()
+        # group by message id and apply get burst_metrics to each group
+        burst_df = events_df.groupby("message_id").apply(
+            lambda x: hf.get_burst_metrics(x, burst_colname=burst_colname, iki_colname=iki_colname)
+        ).reset_index(drop=True)
         return burst_df
 
     def add_rburst():
