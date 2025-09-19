@@ -584,15 +584,38 @@ class KeyLoggingDataFrame(pd.DataFrame):
         self.__init__(merged_df)
         return self
     
+
+    def burst_dataframe(self, burst_colname:str=None, action_colname:str=None, iki_colname:str=None) -> pd.DataFrame:
+        """Returns a dataframe containing the character length and duration of each burst in the KeyLoggingDataFrame.
+        input: self is a KeyLoggingDataFrame 
+            burst_colname: str, name of the column containing burst tags in IOB format (generated with add_pburst or add_rburst)
+        output: pd.DataFrame with one row per burst and columns: burst_id, message_id, user_id, session_id, start_time, end_time, duration, length
+        """
+        if not burst_colname:
+            burst_colname = hf.generate_colname("burst", self.columns)
+        if burst_colname not in self.columns:
+            raise ValueError(f"Burst column '{burst_colname}' not found in DataFrame.")
+
+
+        bursts_df = pd.DataFrame(columns=['message_id', 'burst_nb', "nonsense",'length', 'longest_token_length', 'nb_identical_characters', 'median_IKI', 'lowest_IKI', 'perplexity'])
+        for message_id in indexes:
+            events_message = events[events['MESSAGE_ID'] == message_id]
+            if not events_message.empty:
+                burst = get_burst_metrics(events_message, ngram_models=models, lambdas=lambdas, valid_chars=valid_chars)
+                nonsense = data.loc[message_id,"nonsense"]
+                burst['nonsense'] = nonsense
+                bursts_df = pd.concat([bursts_df, burst], ignore_index=True)
+                
+
+        return burst_df
+
     def add_rburst():
         pass
 
-    def pburst_analysis(self, pburst_colname:str=None, pause_method:str=None, pause_threshold:float=None, pause_a:float=None, iki_colname:str=None) -> "KeyLoggingDataFrame" :
+    def pburst_analysis(self, pburst_colname:str=None) -> "KeyLoggingDataFrame" :
         # verify parameters
-        if not pburst_colname and not pause_method:
-            raise ValueError("Either pburst_colname or pause_method must be specified.")
-        if pburst_colname and (pause_method or pause_threshold or pause_a):
-            raise ValueError("If pburst_colname is specified, pause_method, pause_threshold and pause_a must be None.")
+        if not pburst_colname:
+            raise ValueError("Pburst column name must be specified.")
         if pburst_colname and pburst_colname not in self.columns:
             raise ValueError(f"Pburst column '{pburst_colname}' not found in DataFrame.")
         
@@ -638,7 +661,7 @@ class KeyLoggingDataFrame(pd.DataFrame):
             "percentage_pauses_per_keys": round(percentage_pauses_per_keys,3) if pd.notna(percentage_pauses_per_keys) else None,
             "total_pause_duration": int(pause_duration) if pd.notna(pause_duration) else None,
             "percentage_pause_duration": round(percentage_pause_duration,3) if pd.notna(percentage_pause_duration) else None,
-            "avg_pause_length": round(avg_pause_length,3) if pd.notna(avg_pause_length) else None,
+            "mean_pause_length": round(avg_pause_length,3) if pd.notna(avg_pause_length) else None,
             "std_pause_length": round(std_pause_length,3) if pd.notna(std_pause_length) else None,
             "median_pause_length": int(median_pause_length) if pd.notna(median_pause_length) else None,
             "mad_pause_length": int(mad_pause_length) if pd.notna(mad_pause_length) else None,
