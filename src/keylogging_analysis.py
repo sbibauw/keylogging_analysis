@@ -406,10 +406,10 @@ class KeyLoggingDataFrame(pd.DataFrame):
             df = df.sort_values(by=['message_id', 'key_time'])
 
             # 3. create pause column if not already present
-            if pause_method is not None:
-                if pause_colname is None:
-                    pause_colname = hf.generate_colname("pause", df.columns)
-                df.add_pause(colname=pause_colname, method=pause_method, threshold=pause_threshold, a=pause_a, iki_colname=iki_colname, include_first_key=True, include_nontyping_events=False)
+            #if pause_method is not None:
+            #    if pause_colname is None:
+            #        pause_colname = hf.generate_colname("pause", df.columns)
+            #    df.add_pause(colname=pause_colname, method=pause_method, threshold=pause_threshold, a=pause_a, iki_colname=iki_colname, include_first_key=True, include_nontyping_events=False)
 
             # Create pburst column
             first_characters = df[df["event_for_message_type"] == 0].sort_values(by=["message_id", "key_time"]).groupby("message_id").head(1).index
@@ -417,9 +417,6 @@ class KeyLoggingDataFrame(pd.DataFrame):
             df.loc[df[pause_colname] == False, "pburst"] = "I"
             df.loc[df[pause_colname] == True, "pburst"] = "B"
             df.loc[first_characters, "pburst"] = "B"
-            if iki_colname is None:
-                iki_colname = hf.generate_colname("iki", df.columns)
-                df.add_iki(colname=iki_colname, include_first_key=include_first_key, include_nontyping_events=include_nontyping_events)
 
             # merge df to self
             merged_df = self.merge(df[['key_id', 'pburst']], on='key_id', how='left')
@@ -589,7 +586,7 @@ class KeyLoggingDataFrame(pd.DataFrame):
         return self
     
 
-    def burst_dataframe(self, burst_colname:str=None, iki_colname:str=None) -> pd.DataFrame:
+    def burst_dataframe(self, burst_colname:str=None, iki_colname:str=None, action_colname:str=None) -> pd.DataFrame:
         """Returns a dataframe containing the character length and duration of each burst in the KeyLoggingDataFrame.
         input: self is a KeyLoggingDataFrame 
             burst_colname: str, name of the column containing burst tags in IOB format (generated with add_pburst or add_rburst)
