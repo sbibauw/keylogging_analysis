@@ -128,12 +128,14 @@ def detect_end_addition_span(curr, prev):
     action = detect_action(curr, prev)
     if action in ["no change", "deletion", None]:
         return None
-    j1 = len(curr)
-    j2 = len(prev)
-    while j1 > 0 and j2 > 0 and curr[j1-1] == prev[j2-1]:
-        j1 -= 1
-        j2 -= 1
-    return j1
+    #j1 = len(curr)
+    #j2 = len(prev)
+    #while j1 > 0 and j2 > 0 and curr[j1-1] == prev[j2-1]:
+    #    j1 -= 1
+    #    j2 -= 1
+    else: 
+        # only works if only one character added (which is the case in the datasets we have)
+        return detect_start_addition_span(curr, prev) + 1
 
 def detect_end_deletion_span(curr, prev):
     """input: two strings, the current and previous content of a message
@@ -210,3 +212,23 @@ def get_burst_metrics(events, burst_colname:str=None, action_colname:str=None, i
             })
             df = pd.concat([df, row.to_frame().T], ignore_index=False)
     return df
+
+def detect_distance_to_end(content, end_deletion, end_addition):
+    """input: content (str), end_deletion (int or None), end_addition (int or None)
+    output: distance to end of content, defined as the number of characters after the last change (deletion or addition)
+    if both end_deletion and end_addition are None, return None
+    if content is None or NaN, return None
+    """
+    if not content:
+        content = ""
+    content = str(content)
+    if not end_deletion and not end_addition:
+        return None
+    if not end_deletion and not end_addition:
+        last_change = max(end_deletion, end_addition)
+    elif not end_deletion:
+        last_change = end_deletion
+    else:
+        last_change = end_addition
+    return len(content) - last_change
+
