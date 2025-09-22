@@ -1,6 +1,6 @@
 # About `keylogging_analysis`
 
-`keylogging_analysis` is a Python module aimed at processsing and analysing data from the **Language Hero** ("lh") and **Language Lab** ("ll") datasets. It is useful to researchers interested in **L2 language fluency**, **chatbot-student interactions** or **keylogging data**.
+`keylogging_analysis` is a Python module for processing and analyzing keylogging data from the **Language Hero** ("lh") and **Language Lab** ("ll") datasets. It is designed for researchers and educators interested in **L2 language fluency**, **chatbot-student interactions**, or **keystroke logging**. The package provides a user-friendly interface for loading, cleaning, and analyzing keylogging data, and includes advanced methods for extracting writing process metrics.
 
 # How to install?
 
@@ -14,7 +14,73 @@ The Language Lab data contains keylogs of L2 learners and their tutors within a 
 
 # Use of `keylogging_analysis`
 
-The `keylogging_analysis` package facilitates analysis of keylogging data through the class KeyLoggingDataFrame, conceived as a subclass of a Pandas DataFrame. Besides the traditional methods applicable to Pandas dataframes, the class allows for additional methods aimed at loading keylogging data, processing it, computing metrics on the writing process and converting the data into KeyLog format. This section explains step by step how to proceed with the analysis. A more detailed description of the methods and their requirements can be found in the documentation below.
+The `keylogging_analysis` package provides the `KeyLoggingDataFrame` class, which extends the functionality of a standard pandas DataFrame with specialized methods for keylogging data. You can use all regular pandas DataFrame operations, but also benefit from additional methods for loading, cleaning, and analyzing writing process data. The workflow is as follows:
+
+1. **Import the class and create an instance**: Start by importing `KeyLoggingDataFrame` and creating an empty instance. This instance will hold your data.
+2. **Load your data**: Use `load_default_data()` to load the built-in datasets, or `load_data_from_path()` to load your own CSV files. The `system` parameter specifies whether you are working with Language Hero (`"lh"`) or Language Lab (`"ll"`) data.
+3. **Preprocess and clean**: The class provides methods to automatically remove anonymized, nonsense, or native-speaker data (for Language Hero), or you can keep all data by setting the appropriate parameters.
+4. **Analyze writing process**: Use methods like `add_iki()`, `add_pause()`, `add_pburst()`, `add_action()`, `add_span()`, and `add_length()` to compute writing process metrics and add them as new columns to your DataFrame. You can then use pandas or the provided analysis methods to further explore your data.
+5. **Export or visualize**: After analysis, you can export your DataFrame to CSV or use pandas/plotting libraries for visualization.
+
+Each method is designed to be easy to use, with sensible defaults and clear error messages. See the technical documentation below for details on each method and its parameters.
+# Documentation `keylogging_analysis version 0.0.1`
+
+## KeyLoggingDataFrame methods
+
+### Data Loading and Preprocessing
+
+#### `load_default_data(system, include_anonymized=None, include_nonsense=None, include_native=None)`
+Loads and preprocesses the default dataset for the specified system ("lh" or "ll"). For Language Hero, you can exclude anonymized, nonsense, or native-speaker data using the optional parameters. Returns a KeyLoggingDataFrame with merged and cleaned data.
+
+#### `load_data_from_path(system, path_keys, path_messages, include_anonymized=None, include_nonsense=None, include_native=None)`
+Loads and merges key and message data from specified CSV files. The `system` parameter ensures the correct column mapping. Optional parameters for Language Hero allow filtering of anonymized, nonsense, or native-speaker data.
+
+### Writing Process Metrics
+
+#### `add_iki(colname="iki", include_first_key=False, include_nontyping_events=False)`
+Adds a column with the Inter-Keystroke Interval (IKI) in milliseconds. IKI is the time between consecutive key events within the same message. If `include_first_key` is `True`, the first key of each message is included; otherwise, it is set to NaN. If `include_nontyping_events` is `True`, all events are considered; otherwise, only typing events (`event_for_message_type == 0`).
+
+#### `add_pause(colname, method, threshold=None, a=None, iki_colname=None, include_first_key=False, include_nontyping_events=False)`
+Adds a boolean column indicating whether a key event is preceded by a pause. Pauses can be defined by a fixed IKI threshold (`method="fixed"`, `threshold` in ms) or individualized per user (`method="individualized"`, using a multiple `a` of the user's median IKI). The pause is `True` if the IKI exceeds the threshold, `False` otherwise, and NaN if IKI is not available.
+
+#### `add_pburst(colname=None, pause_colname=None, pause_method=None, pause_threshold=None, pause_a=None, iki_colname=None)`
+Adds a column marking process bursts (pbursts) in the writing process. A pburst starts with a pause or the first character of a message (`'B'`), continues with uninterrupted typing (`'I'`), and is marked as `'O'` for events outside bursts or with missing pause information. Requires a pause column, which can be generated automatically if not provided.
+
+#### `add_action(colname=None)`
+Adds a column indicating the type of text change at each event: "addition", "deletion", "substitution", or "no change". This is determined by comparing the current and previous content of the message.
+
+#### `add_span(colnames=[None, None, None, None], selection=[True,True,True,True])`
+Adds columns marking the start and end positions of addition and deletion spans in the text, based on the detected action. The `selection` parameter allows you to choose which spans to compute.
+
+#### `add_length(colnames=[None, None], selection=[True, True])`
+Adds columns for the process length (number of events in a message) and product length (final text length) for each event. The `selection` parameter allows you to choose which lengths to compute.
+
+### Burst and Pause Analysis
+
+#### `burst_dataframe(burst_colname=None, iki_colname=None, action_colname=None)`
+Returns a DataFrame with one row per burst, containing metrics such as burst duration, number of process characters, and product characters. Requires a burst column (e.g., from `add_pburst`).
+
+#### `add_rburst()`
+Adds columns for revision bursts (rbursts), which are segments of the writing process marked by revisions (e.g., deletions or substitutions). Implementation details depend on the revision detection logic.
+
+#### `pburst_analysis(pburst_colname=None)`
+Performs analysis on process bursts, returning metrics such as burst count, mean/median burst length, and distribution of burst types.
+
+#### `pause_analysis(pause_colname=None, iki_colname=None)`
+Analyzes pauses in the writing process, returning metrics such as pause count, mean/median pause duration, and pause rate per message or user.
+
+### Additional Utilities
+
+#### `_drop_anonymized()`
+Removes events occurring in anonymized messages (for Language Hero data).
+
+#### `_drop_nonsense()`
+Removes events occurring in messages identified as nonsense (e.g., keysmashes or character repetitions).
+
+#### `_drop_native()`
+Removes events from native speakers (for Language Hero data).
+
+---
 
 ## 1. Import the class and instantiate an empty instance of this class
 
@@ -154,36 +220,41 @@ ________________________________________________________________________________
 
 
 
-## KeyLoggingDataFrame.add_ikis(colname="iki", include_first_key=False, include_nontyping_events=False)
+## Technical Details: How Metrics Are Calculated
 
-> Add a column containing the **Inter-Keystroke Interval (IKI)** to the dataframe. The IKI measures the time difference (in milliseconds) between consecutive key presses within the same message and is used by other methods for computing pauses and writing speed
->
-> ### input:
->
-> **colname :** str, default `"iki"`  
->
-> Name of the new column to be added.  
-> The column name must not already exist in the dataframe.  
->
-> **include_first_key :** bool, default `False`  
->
-> - If `False`: the first key of each message is excluded from IKI computation.  
-> - If `True`: the IKI for the first event in a message is computed (the pause before writing).  
->
-> **include_nontyping_events :** bool, default `False`  
->
-> - If `False`: only typing events (`event_for_message_type == 0`) are used for IKI computation.  
-> - If `True`: all events are considered when computing IKI (including help requests, consultation of feedback and message sending).  
->
-> ⚠️ Constraint:  If `include_nontyping_events=True`, then `include_first_key` must also be `True`.  
->
->
-> ### output:
->
-> A `KeyLoggingDataFrame` (same class as the input) with an additional column containing IKI values:  
+Below are the technical details for each method, including how metrics are computed and what each column represents. This section is intended for advanced users and developers who want to understand the implementation and logic behind each metric.
 
-> - Each value corresponds to the time difference (in ms) between the current key event and the previous key event (within the same `message_id`).  
-> - Non-applicable events are filled with `NaN`.
+### `add_iki()`
+- For each event, the IKI is calculated as the time difference (in milliseconds) between the current and previous key event within the same message. If `include_first_key` is `False`, the first event in each message is set to NaN. If `include_nontyping_events` is `False`, only events with `event_for_message_type == 0` are considered; otherwise, all events are included. The IKI column is filled with NaN for non-applicable events.
+
+### `add_pause()`
+- The pause column is a boolean indicating whether the IKI exceeds a threshold. For `method="fixed"`, the threshold is a constant (in ms). For `method="individualized"`, the threshold is computed as `a` times the user's median IKI. If IKI is NaN, pause is set to NaN. The method ensures that the pause column does not overwrite existing columns and checks for valid input.
+
+### `add_pburst()`
+- The pburst column marks process bursts: `'B'` for the start of a burst (pause is True or first character of a message), `'I'` for continuation (pause is False), and `'O'` for events outside bursts or with missing pause information. The method identifies the first character of each message and assigns burst labels accordingly.
+
+### `add_action()`
+- The action column is determined by comparing the current and previous content of the message. If the current content is longer, the action is "addition". If the content is unchanged, the action is "no change". Otherwise, the method checks for "deletion" or "substitution" by comparing character positions.
+
+### `add_span()`
+- The span columns mark the start and end positions of addition and deletion spans, based on the detected action. The method uses helper functions to find the first and last differing character between the current and previous content.
+
+### `add_length()`
+- The process length is the number of events in a message; the product length is the length of the final text. The method adds columns for these metrics, optionally controlled by the `selection` parameter.
+
+### `burst_dataframe()`
+- This method creates a DataFrame with one row per burst, including metrics such as burst duration (time between first and last event), process characters (number of events in the burst), and product characters (difference in text length between first and last event). Only events labeled as part of a burst are included.
+
+### `add_rburst()`
+- Revision bursts (rbursts) are segments of the writing process marked by revisions (e.g., deletions or substitutions). The method identifies rbursts based on the action column and groups consecutive revision events.
+
+### `pburst_analysis()`
+- Analyzes process bursts, returning metrics such as the number of bursts, mean and median burst length, and the distribution of burst types. The analysis is based on the pburst column.
+
+### `pause_analysis()`
+- Computes pause metrics, including the number of pauses, mean and median pause duration, and pause rate per message or user. The analysis uses the pause and IKI columns.
+
+---
 
 
 > ### kldf.add_pauses(threshold, name="pause")
