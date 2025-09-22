@@ -4,7 +4,11 @@
 
 # How to install?
 
-(pip)
+The packaged can be easily installed with the [pip package installer](https://pypi.org/project/pip/), using the following line in the terminal (both on Windows and on Mac). 
+
+```
+pip install keylogging_analysis
+```
 
 # On Language Hero and Language Lab data
 
@@ -19,10 +23,13 @@ The `keylogging_analysis` package provides the `KeyLoggingDataFrame` class, whic
 1. **Import the class and create an instance**: Start by importing `KeyLoggingDataFrame` and creating an empty instance. This instance will hold your data.
 2. **Load your data**: Use `load_default_data()` to load the built-in datasets, or `load_data_from_path()` to load your own CSV files. The `system` parameter specifies whether you are working with Language Hero (`"lh"`) or Language Lab (`"ll"`) data.
 3. **Preprocess and clean**: The class provides methods to automatically remove anonymized, nonsense, or native-speaker data (for Language Hero), or you can keep all data by setting the appropriate parameters.
-4. **Analyze writing process**: Use methods like `add_iki()`, `add_pause()`, `add_pburst()`, `add_action()`, `add_span()`, and `add_length()` to compute writing process metrics and add them as new columns to your DataFrame. You can then use pandas or the provided analysis methods to further explore your data.
-5. **Export or visualize**: After analysis, you can export your DataFrame to CSV or use pandas/plotting libraries for visualization.
+4. **Add columns containing information in the writing process**: Use methods like `add_iki()`, `add_pause()`, `add_pburst()`, `add_action()`, `add_span()`, and `add_length()` to compute writing process metrics and add them as new columns to your DataFrame. You can then use pandas or the provided analysis methods to further explore your data.
+5. **Apply analysis methods to the added columns**: Once the required columns are added to the original dataframe, apply methods like `pause_analysis()` or `burst_analysis()` to extract writing process metrics or use `burst_dataframe()` or `revision_dataframe()` to generate dataframes in which each row represents a burst or revision respectively, which can be used for further analysis.
+6. **Export or visualize**: After analysis, you can export your DataFrame to CSV or use pandas/plotting libraries for visualization.
 
 Each method is designed to be easy to use, with sensible defaults and clear error messages. See the technical documentation below for details on each method and its parameters.
+
+
 # Documentation `keylogging_analysis version 0.0.1`
 
 ## KeyLoggingDataFrame methods
