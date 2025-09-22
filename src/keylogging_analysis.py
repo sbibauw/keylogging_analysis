@@ -16,7 +16,7 @@ import numpy as np
 import warnings
 from pathlib import Path
 from src import help_functions as hf
-import polars as pl
+
 
 
 class KeyLoggingDataFrame(pd.DataFrame):
