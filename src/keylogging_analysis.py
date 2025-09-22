@@ -667,6 +667,56 @@ class KeyLoggingDataFrame(pd.DataFrame):
         except Exception as e:
             raise e
     
+    def add_revision(self, colname:str=None, action_colname:str=None):
+        """add a column indicating which events are part of a revision according to the IOB format"""
+        try:
+            # 1. verify parameters
+            if self.empty:
+                raise ValueError("DataFrame is empty. load data first throught load_default_data or load_data_from_path")
+            if not action_colname:
+                raise ValueError("Action column name must be specified.")
+            if action_colname not in self.columns:
+                raise ValueError(f"Action column '{action_colname}' not found in DataFrame.")
+            if "message_id" not in self.columns:
+                raise ValueError("DataFrame must contain 'message_id' column to calculate revisions.")
+            if "key_id" not in self.columns:
+                raise ValueError("DataFrame must contain 'key_id' column to calculate revisions.")
+            if not pd.api.types.is_object_dtype(self[action_colname]) and not pd.api.types.is_string_dtype(self[action_colname]):
+                raise ValueError(f"Action column '{action_colname}' must be of string dtype.")
+            if not set(self[action_colname].dropna().unique()).issubset({"addition", "deletion", "modification", "no change"}):
+                raise ValueError(f"Action column '{action_colname}' must only contain the values 'addition', 'deletion', 'modification' and 'no change'.")
+            if colname in self.columns:
+                raise ValueError(f"Column '{colname}' already exists in the DataFrame. Please choose a different name.")
+            if not colname:
+                colname = hf.generate_colname("revision", self.columns)
+
+            # 2. Make copy of dataframe in self
+            df = self.copy()
+            df = df.sort_values(by=['message_id', 'key_time'])
+
+            # 3. Create revision column
+            df["revision"] = "O"
+            
+
+            first_characters = df[df["event_for_message_type"] == 0].sort_values(by=["message_id", "key_time"]).groupby("message_id").head(1).index
+            df["revision"] = "O"  # default to 'O' (other/NaN)
+            df.loc[df[action_colname] != "no change", "revision"] = "B"
+            df.loc[first_characters, "revision"] = "O"
+
+            # merge df to self
+            merged_df = self.merge(df[['key_id', 'revision']], on='key_id', how='left')
+            self.__init__(merged_df)
+            return self
+        except Exception as e:
+            raise e
+
+
+    def pause_dataframe(self, pause_colname:str=None, iki_colname:str=None) -> pd.DataFrame:
+        """returns a Pandas DataFrame in which each row represents a pause in the KeyLoggingDataFrame. Besides the normal keylogging data, the dataframe contains the following columns:
+        - pause_location: "word_start", "word_middle", "word_end" (words are defined as sequences of alphannumeric characters)
+        """
+
+
     def burst_dataframe(self, burst_colname:str=None, iki_colname:str=None, action_colname:str=None) -> pd.DataFrame:
         """Returns a dataframe containing the character length and duration of each burst in the KeyLoggingDataFrame.
         input: self is a KeyLoggingDataFrame 
@@ -692,6 +742,7 @@ class KeyLoggingDataFrame(pd.DataFrame):
         ).reset_index(drop=True)
         return burst_df
 
+    def revision_dataframe(self, rburst_colname:str=None, action_colname:str=None) -> pd.DataFrame:
 
     def pburst_analysis(self, pburst_colname:str=None) -> "KeyLoggingDataFrame" :
         # verify parameters
