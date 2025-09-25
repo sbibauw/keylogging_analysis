@@ -667,7 +667,7 @@ class KeyLoggingDataFrame(pd.DataFrame):
         except Exception as e:
             raise e
     
-    def add_revision(self, colname:str=None, action_colname:str=None):
+    def add_revision(self, colname:str=None):
         """add a column indicating which events are part of a revision according to the IOB format"""
         try:
             # 1. verify parameters
@@ -694,8 +694,13 @@ class KeyLoggingDataFrame(pd.DataFrame):
             df = self.copy()
             df = df.sort_values(by=['message_id', 'key_time'])
 
+            # add action and distance_to_end
+
+
             # 3. Create revision column
             df["revision"] = "O"
+
+            # Mark deletions and within-text insertions and  as 'I'
             
 
             first_characters = df[df["event_for_message_type"] == 0].sort_values(by=["message_id", "key_time"]).groupby("message_id").head(1).index
