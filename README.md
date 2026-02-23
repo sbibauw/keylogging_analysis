@@ -2,6 +2,16 @@
 
 `keylogging_analysis` is a Python module for processing and analyzing keylogging data from the **Language Hero** ("lh") and **Language Lab** ("ll") datasets. It is designed for researchers and educators interested in **L2 language fluency**, **chatbot-student interactions**, or **keystroke logging**. The package provides a user-friendly interface for loading, cleaning, and analyzing keylogging data, and includes advanced methods for extracting writing process metrics.
 
+# Development
+
+- Load basic dataframe
+- Add IKI column
+- To do:
+  - [ ] ....
+  - [ ] Check if _method_pandas still works in Pandas x.x.x
+
+
+
 # How to install?
 
 The packaged can be easily installed with the [pip package installer](https://pypi.org/project/pip/), using the following line in the terminal (both on Windows and on Mac). 
