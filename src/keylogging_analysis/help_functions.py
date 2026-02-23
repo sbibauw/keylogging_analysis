@@ -16,38 +16,6 @@ def generate_colname(base, existing_cols):
         return new_name
 
 
-def are_ids_unique(df):
-    """
-    input: polars dataframe containing a column "id"
-    output: True if all ids are unique, False if not
-    """
-    if len(df) == df.n_unique(subset="id"):
-        return True
-    else:
-        ids = df.group_by("id").agg(pl.count()).filter(pl.col("count") >= 2)
-        items = []
-        for id in ids["id"]:
-            items_id = df.filter(pl.col("id") == id)
-            items.append(items_id)
-        items = pl.concat(items)
-        items.write_csv("inspect_non_zero_ids.csv")
-        # print(items)
-        # with pl.Config(tbl_rows=-1):
-        #     print(items.group_by("SCENARIO_ID").agg(pl.count()).sort(by="count", descending=True))
-        # with pl.Config(tbl_rows=-1):
-        #     print(items.group_by("TASK_ID").agg(pl.count()).sort(by="count", descending=True))
-        return False
-
-    
-def all_of_first_in_last(col1, col2):
-    """
-    input: two lists
-    output: returns True if all elements of col1 appear at least once in col2
-    e.g. to verify whether ids are valid (see use in main.py)
-    """
-    col1 = col1.unique()
-    col2 = col2.unique()
-    return col1.is_in(col2).all()
 
 def detect_action(curr, prev):
     """input: two strings, the current and previous content of a message
@@ -185,15 +153,15 @@ def get_burst_metrics(events, burst_colname:str=None, action_colname:str=None, i
     df = pd.DataFrame(columns=['message_id', 'burst_order', 'process_chars', 'product_chars'])
     
     # select only B and I events (O-events are outside a burst)))
-    events_message = events[events['pburst'].isin(['I', 'B'])]
+    events_message = events[events[burst_colname].isin(['I', 'B'])]
     burst_order = 0
     for j in range(len(events_message)):
-        if events_message.iloc[j]["pburst"] == "B":
+        if events_message.iloc[j][burst_colname] == "B":
             burst_order +=1
             # select all events of burst
             b_burst = pd.DataFrame(events_message.iloc[j]).T
             i_burst = events_message.iloc[j+1:].loc[   # all I-events after B ! additions and substitutions only !
-                lambda x: (x['pburst'] == 'I').cumprod().astype(bool)
+                lambda x: (x[burst_colname] == 'I').cumprod().astype(bool)
             ]
             events_burst = pd.concat([b_burst, i_burst], axis=0)
             
@@ -205,7 +173,7 @@ def get_burst_metrics(events, burst_colname:str=None, action_colname:str=None, i
             
 
             row = pd.Series({
-                'message_id': events_message.iloc[j]["MESSAGE_ID"],
+                'message_id': events_message.iloc[j]["message_id"],
                 'burst_order': burst_order,
                 'process_chars': process_chars,
                 'product_chars': product_chars
@@ -222,11 +190,11 @@ def detect_distance_to_end(content, end_deletion, end_addition):
     if not content:
         content = ""
     content = str(content)
-    if not end_deletion and not end_addition:
+    if end_deletion is None and end_addition is None:
         return None
-    if not end_deletion and not end_addition:
+    if end_deletion is not None and end_addition is not None:
         last_change = max(end_deletion, end_addition)
-    elif not end_deletion:
+    elif end_addition is None:
         last_change = end_deletion
     else:
         last_change = end_addition
