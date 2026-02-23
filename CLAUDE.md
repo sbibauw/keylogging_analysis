@@ -20,7 +20,7 @@ Build system: Hatchling (configured in `pyproject.toml`). Dependencies: pandas, 
 - `src/keylogging_analysis/classes.py` — Core `KeyLoggingDataFrame` class (extends `pd.DataFrame`). Contains all data loading, preprocessing, and analysis methods.
 - `src/keylogging_analysis/help_functions.py` — Utility functions: column name generation, action/span detection helpers, burst metrics.
 - `src/keylogging_analysis/__init__.py` — Exports `KeyLoggingDataFrame`.
-- `src/keylogging_analysis/data/` — Default CSV datasets (`lh_default.csv` ~588k rows, `ll_default.csv` ~23 rows).
+- `src/keylogging_analysis/data/` — Default CSV datasets (`lh_default.csv` ~588k rows, `ll_default.csv` ~23 rows) and JSON filter lists (`lh_nonsense_message_ids.json`, `lh_native_message_ids.json`).
 - `tests/test_smoke.py` — Smoke tests for the core pipeline.
 
 ## Architecture
@@ -33,7 +33,7 @@ The entire API is the `KeyLoggingDataFrame` class, which subclasses `pd.DataFram
 4. Merge result back into `self` on `key_id`
 5. Reinitialize via `self.__init__(merged_df)` and return `self`
 
-This in-place mutation via `__init__` is a deliberate pattern used throughout — preserve it when adding new methods.
+Steps 4-5 are handled by the `_merge_and_update(self, df, colnames)` helper. Use it in all new `add_*` methods. The `__init__` preserves `system` metadata via `getattr` pattern.
 
 ### Two data systems
 
@@ -57,10 +57,9 @@ Burst columns (`pburst`, `rburst`) use IOB format: `'B'` (beginning), `'I'` (ins
 
 ## Development Status
 
-Version 0.0.1. Remaining stubs/incomplete methods:
-- `revision_dataframe()` — stub (`pass`)
-- `pause_dataframe()` — no implementation body
-- `_drop_native()` — message IDs list needs verification (currently same as nonsense list; marked with TODO)
+Version 0.0.1. Remaining stubs (raise `NotImplementedError`):
+- `pause_dataframe()`, `revision_dataframe()`, `pburst_analysis()`
+- `_drop_native()` — message IDs need verification (currently same as nonsense list; marked with TODO)
 
 ## Language
 
