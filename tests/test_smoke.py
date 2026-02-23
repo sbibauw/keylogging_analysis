@@ -79,3 +79,14 @@ def test_add_iki_duplicate_colname_raises(sample_kldf):
     sample_kldf.add_iki(colname="iki")
     with pytest.raises(ValueError, match="already exists"):
         sample_kldf.add_iki(colname="iki")
+
+
+def test_system_metadata_preserved(sample_kldf):
+    """system metadata should survive add_iki and other transforms."""
+    assert sample_kldf.system == "lh"
+    sample_kldf.add_iki(colname="iki")
+    assert sample_kldf.system == "lh"
+    sample_kldf.add_pause(colname="pause", method="fixed", threshold=200, iki_colname="iki")
+    assert sample_kldf.system == "lh"
+    sample_kldf.add_action()
+    assert sample_kldf.system == "lh"
