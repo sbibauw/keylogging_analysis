@@ -2,7 +2,7 @@
 import pandas as pd
 import numpy as np
 import pytest
-from keylogging_analysis import KeyLoggingDataFrame
+from keylogging_analysis import KeyLoggingDataFrame, __version__
 
 
 @pytest.fixture
@@ -30,14 +30,23 @@ def sample_kldf():
         "user_status": ["L"] * 10,
         "session_id": [1] * 10,
     }
-    kldf = KeyLoggingDataFrame(data)
-    kldf.system = "lh"
+    kldf = KeyLoggingDataFrame(data, system="lh")
     return kldf
 
 
 def test_create_empty():
     kldf = KeyLoggingDataFrame()
     assert kldf.empty
+
+
+def test_version():
+    assert __version__ == "0.0.2"
+
+
+def test_df_accessible(sample_kldf):
+    """The underlying DataFrame should be accessible via .df"""
+    assert isinstance(sample_kldf.df, pd.DataFrame)
+    assert len(sample_kldf.df) == 10
 
 
 def test_add_iki(sample_kldf):
@@ -90,3 +99,11 @@ def test_system_metadata_preserved(sample_kldf):
     assert sample_kldf.system == "lh"
     sample_kldf.add_action()
     assert sample_kldf.system == "lh"
+
+
+def test_method_chaining(sample_kldf):
+    """add_* methods should return self for chaining."""
+    result = sample_kldf.add_iki(colname="iki")
+    assert result is sample_kldf
+    result2 = sample_kldf.add_action()
+    assert result2 is sample_kldf

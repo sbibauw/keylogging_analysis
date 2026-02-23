@@ -10,6 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 pip install -e .                # editable install for development
+pip install -e ".[dev]"         # with dev dependencies (pytest)
 python -m pytest tests/ -v      # run tests
 ```
 
@@ -17,23 +18,38 @@ Build system: Hatchling (configured in `pyproject.toml`). Dependencies: pandas, 
 
 ## Project Structure
 
-- `src/keylogging_analysis/classes.py` — Core `KeyLoggingDataFrame` class (extends `pd.DataFrame`). Contains all data loading, preprocessing, and analysis methods.
+- `src/keylogging_analysis/classes.py` — Core `KeyLoggingDataFrame` class (composition wrapper around `pd.DataFrame`). Contains all data loading, preprocessing, and analysis methods.
 - `src/keylogging_analysis/help_functions.py` — Utility functions: column name generation, action/span detection helpers, burst metrics.
-- `src/keylogging_analysis/__init__.py` — Exports `KeyLoggingDataFrame`.
+- `src/keylogging_analysis/__init__.py` — Exports `KeyLoggingDataFrame` and `__version__`.
 - `src/keylogging_analysis/data/` — Default CSV datasets (`lh_default.csv` ~588k rows, `ll_default.csv` ~23 rows) and JSON filter lists (`lh_nonsense_message_ids.json`, `lh_native_message_ids.json`).
 - `tests/test_smoke.py` — Smoke tests for the core pipeline.
 
 ## Architecture
 
-The entire API is the `KeyLoggingDataFrame` class, which subclasses `pd.DataFrame` with `_metadata = ['system']`. The pattern for all `add_*` methods is:
+The entire API is the `KeyLoggingDataFrame` class, which wraps a `pd.DataFrame` via **composition** (`self.df`). Convenience proxies (`__getitem__`, `__setitem__`, `__len__`, `columns`, `empty`, `shape`) delegate to `self.df`.
 
-1. Validate parameters
-2. Copy `self`, sort by `['message_id', 'key_time']`
-3. Compute the metric on the copy
-4. Merge result back into `self` on `key_id`
-5. Reinitialize via `self.__init__(merged_df)` and return `self`
+### Data loading — factory classmethods
 
-Steps 4-5 are handled by the `_merge_and_update(self, df, colnames)` helper. Use it in all new `add_*` methods. The `__init__` preserves `system` metadata via `getattr` pattern.
+- `KeyLoggingDataFrame.from_default(system, ...)` — load bundled default dataset
+- `KeyLoggingDataFrame.from_files(system, path_keys, path_messages, ...)` — load from CSV files
+
+Both return a new `KeyLoggingDataFrame` instance.
+
+### Pattern for all `add_*` methods
+
+1. Validate parameters (check `self.df.columns`, `self.df.empty`)
+2. `df = self.df.copy()`, sort by `['message_id', 'key_time']`
+3. Compute the metric on the plain DataFrame copy
+4. Merge result back via `self._merge_and_update(df, colnames)` — merges on `key_id`
+5. `return self` (enables method chaining)
+
+### `_merge_and_update(self, computed_df, colnames)`
+
+Merges computed columns from a plain DataFrame back into `self.df` on `key_id`. No reinit needed.
+
+### `_compute_spans` static method
+
+Span computation is extracted into `@staticmethod _compute_spans(df, selection, colnames)` so both `add_span` and internal callers (`add_length`, `add_distance_to_end`) can use it on plain DataFrames without needing a `KeyLoggingDataFrame` instance.
 
 ### Two data systems
 
@@ -49,15 +65,19 @@ The `system` parameter (`"lh"` or `"ll"`) determines column mappings, filtering 
 
 ### Method chain
 
-Typical usage: `load_data` -> `add_iki()` -> `add_pause()` -> `add_pburst()` -> `add_action()` -> `add_span()` -> analysis methods (`burst_dataframe()`, `pause_analysis()`).
+Typical usage: `from_default`/`from_files` -> `add_iki()` -> `add_pause()` -> `add_pburst()` -> `add_action()` -> `add_span()` -> analysis methods (`burst_dataframe()`, `pause_analysis()`).
 
 ### IOB tagging
 
 Burst columns (`pburst`, `rburst`) use IOB format: `'B'` (beginning), `'I'` (inside), `'O'` (outside/NA).
 
+### Logging
+
+Progress messages use `logging.info()`. Implicit default warnings use `warnings.warn()`.
+
 ## Development Status
 
-Version 0.0.1. Remaining stubs (raise `NotImplementedError`):
+Version 0.0.2. Remaining stubs (raise `NotImplementedError`):
 - `pause_dataframe()`, `revision_dataframe()`, `pburst_analysis()`
 - `_drop_native()` — message IDs need verification (currently same as nonsense list; marked with TODO)
 
