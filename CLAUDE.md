@@ -65,7 +65,16 @@ The `system` parameter (`"lh"` or `"ll"`) determines column mappings, filtering 
 
 ### Method chain
 
-Typical usage: `from_default`/`from_files` -> `add_iki()` -> `add_pause()` -> `add_pburst()` -> `add_action()` -> `add_span()` -> analysis methods (`burst_dataframe()`, `pause_analysis()`).
+Typical usage: `from_default`/`from_files` -> `add_iki()` -> `add_pause()` -> `add_pburst()` -> `add_action()` -> `add_rburst()` -> `add_span()` -> analysis methods (`burst_dataframe()`, `pause_analysis()`, `fluency_metrics()`).
+
+### `fluency_metrics(level=...)`
+
+Extracts aggregated fluency profiles at three granularity levels:
+- `"message"` — one row per message with IKI, pause, burst, revision, and production metrics
+- `"session"` — groups message-level metrics by `[user_id, session_id]` with mean/median/std
+- `"user"` — groups by `[user_id]`
+
+Requires `add_iki`, `add_pause`, `add_pburst`, `add_action`, `add_rburst` to be called first. Uses `_user_id_col` property to resolve system-specific user ID column (PERSONA_ID for lh, user_id for ll).
 
 ### IOB tagging
 

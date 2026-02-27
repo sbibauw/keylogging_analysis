@@ -61,6 +61,11 @@ class KeyLoggingDataFrame:
     def shape(self):
         return self.df.shape
 
+    @property
+    def _user_id_col(self):
+        """Return the raw user-id column name for the current system."""
+        return "PERSONA_ID" if self.system == "lh" else "user_id"
+
     # ── internal helpers ─────────────────────────────────────────────
 
     def _merge_and_update(self, computed_df, colnames):
@@ -689,6 +694,177 @@ class KeyLoggingDataFrame:
         # merge df to self
         self._merge_and_update(df, 'revision')
         return self
+
+    # ── fluency metrics ─────────────────────────────────────────────
+
+    def _compute_message_metrics(self, df, iki_colname, pause_colname,
+                                  pburst_colname, rburst_colname, action_colname):
+        """Compute per-message fluency metrics from a typing-events DataFrame."""
+        user_id_col = self._user_id_col
+
+        def _dist_stats(vals):
+            """Return mean, md, sd, iqr, mad for a Series."""
+            if len(vals) == 0:
+                return np.nan, np.nan, np.nan, np.nan, np.nan
+            return (vals.mean(), vals.median(), vals.std(),
+                    vals.quantile(0.75) - vals.quantile(0.25),
+                    (vals - vals.median()).abs().median())
+
+        def _burst_metrics(grp, tag_col, prefix_length, prefix_duration=None, iki_col=None):
+            """Segment IOB tags into bursts, return dict of metrics."""
+            tags = grp[tag_col]
+            burst_ids = (tags == "B").cumsum()
+            burst_ids = burst_ids.where(tags != "O", 0)
+            bursts_only = grp[burst_ids > 0].copy()
+            bursts_only["_bid"] = burst_ids[burst_ids > 0]
+            out = {}
+            if len(bursts_only) > 0:
+                bg = bursts_only.groupby("_bid")
+                lengths = bg.size()
+                out[f"{prefix_length}s_n"] = len(lengths)
+                for suf, val in zip(
+                    ["_mean", "_md", "_sd", "_iqr", "_mad"], _dist_stats(lengths)
+                ):
+                    out[f"{prefix_length}_length{suf}"] = val
+                if prefix_duration and iki_col:
+                    durations = bg[iki_col].sum()
+                    for suf, val in zip(
+                        ["_mean", "_md", "_sd", "_iqr", "_mad"], _dist_stats(durations)
+                    ):
+                        out[f"{prefix_duration}_duration{suf}"] = val
+            else:
+                out[f"{prefix_length}s_n"] = 0
+                for suf in ["_mean", "_md", "_sd", "_iqr", "_mad"]:
+                    out[f"{prefix_length}_length{suf}"] = np.nan
+                if prefix_duration:
+                    for suf in ["_mean", "_md", "_sd", "_iqr", "_mad"]:
+                        out[f"{prefix_duration}_duration{suf}"] = np.nan
+            return out
+
+        rows = []
+        for msg_id, grp in df.groupby("message_id"):
+            grp = grp.sort_values("key_time")
+            row = {
+                "message_id": msg_id,
+                "user_id": grp[user_id_col].iloc[0],
+                "session_id": grp["session_id"].iloc[0],
+            }
+
+            # IKI
+            iki_vals = grp[iki_colname].dropna()
+            for suf, val in zip(
+                ["_mean", "_md", "_sd", "_iqr", "_mad"], _dist_stats(iki_vals)
+            ):
+                row[f"iki{suf}"] = val
+
+            # Pauses
+            pause_valid = grp[pause_colname].dropna()
+            n_pause_valid = len(pause_valid)
+            n_pauses = int(pause_valid.sum()) if n_pause_valid > 0 else 0
+            row["pauses_n"] = n_pauses
+            row["pause_ratio"] = n_pauses / n_pause_valid if n_pause_valid > 0 else np.nan
+            pause_durs = grp.loc[grp[pause_colname] == True, iki_colname].dropna()
+            row["pause_duration_total"] = pause_durs.sum() if len(pause_durs) > 0 else 0
+            for suf, val in zip(
+                ["_mean", "_md", "_sd", "_iqr", "_mad"], _dist_stats(pause_durs)
+            ):
+                row[f"pause_duration{suf}"] = val
+
+            # P-bursts
+            row.update(_burst_metrics(grp, pburst_colname, "pburst",
+                                      prefix_duration="pburst", iki_col=iki_colname))
+
+            # R-bursts
+            row.update(_burst_metrics(grp, rburst_colname, "rburst"))
+
+            # Revisions
+            actions = grp[action_colname].dropna()
+            rev_mask = actions.isin(["deletion", "modification"])
+            row["revisions_n"] = int(rev_mask.sum())
+            row["revision_ratio"] = rev_mask.sum() / len(actions) if len(actions) > 0 else np.nan
+
+            # Production
+            row["keystrokes_n"] = len(grp)
+            last_content = grp["content"].iloc[-1]
+            row["final_text_length"] = len(last_content) if pd.notna(last_content) else 0
+            dur_s = (grp["key_time"].max() - grp["key_time"].min()).total_seconds()
+            row["duration_total"] = dur_s
+            row["production_rate"] = row["final_text_length"] / dur_s if dur_s > 0 else np.nan
+
+            rows.append(row)
+
+        return pd.DataFrame(rows)
+
+    def _aggregate_metrics(self, msg_df, group_cols):
+        """Aggregate message-level metrics by group_cols (session or user)."""
+        numeric_cols = [c for c in msg_df.select_dtypes(include="number").columns
+                        if c not in group_cols]
+        count_cols = [c for c in numeric_cols if c.endswith("_n")]
+        other_cols = [c for c in numeric_cols if c not in count_cols]
+
+        agg_dict = {}
+        for col in other_cols:
+            agg_dict[col] = ["mean", "median", "std"]
+        for col in count_cols:
+            agg_dict[col] = ["mean", "median", "std", "sum"]
+
+        grouped = msg_df.groupby(group_cols, sort=False).agg(agg_dict)
+
+        # Flatten multi-level column index
+        flat = []
+        for col, agg in grouped.columns:
+            if agg == "sum":
+                flat.append(f"{col}_total")
+            elif agg == "median":
+                flat.append(f"{col}_md")
+            elif agg == "std":
+                flat.append(f"{col}_sd")
+            else:
+                flat.append(f"{col}_{agg}")
+        grouped.columns = flat
+
+        grouped["messages_n"] = msg_df.groupby(group_cols, sort=False).size()
+        return grouped.reset_index()
+
+    def fluency_metrics(self, level="message", iki_colname="iki",
+                        pause_colname="pause", pburst_colname="pburst",
+                        rburst_colname="rburst", action_colname="action") -> pd.DataFrame:
+        """Extract aggregated fluency metrics at message, session, or user level.
+
+        Requires that the referenced columns already exist (via add_iki, add_pause,
+        add_pburst, add_rburst, add_action).
+
+        Parameters
+        ----------
+        level : str
+            ``"message"``, ``"session"``, or ``"user"``.
+        """
+        if level not in ("message", "session", "user"):
+            raise ValueError(f"Invalid level '{level}'. Must be 'message', 'session', or 'user'.")
+        if self.df.empty:
+            raise ValueError("DataFrame is empty. Load data first.")
+
+        required = [iki_colname, pause_colname, pburst_colname, rburst_colname, action_colname]
+        missing = [c for c in required if c not in self.df.columns]
+        if missing:
+            raise ValueError(f"Missing required columns: {missing}. "
+                             "Call the corresponding add_* methods first.")
+
+        # Filter to typing events
+        df = self.df.copy()
+        df["event_for_message_type"] = pd.to_numeric(df["event_for_message_type"])
+        df = df[df["event_for_message_type"] == 0]
+
+        msg_df = self._compute_message_metrics(
+            df, iki_colname, pause_colname, pburst_colname, rburst_colname, action_colname
+        )
+
+        if level == "message":
+            return msg_df
+        elif level == "session":
+            return self._aggregate_metrics(msg_df, ["user_id", "session_id"])
+        else:  # user
+            return self._aggregate_metrics(msg_df, ["user_id"])
 
     # ── analysis methods ─────────────────────────────────────────────
 
