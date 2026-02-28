@@ -74,6 +74,31 @@ class KeyLoggingDataFrame:
             colnames = [colnames]
         self.df = self.df.merge(computed_df[['key_id'] + colnames], on='key_id', how='left')
 
+    def _require_columns(self, *cols):
+        """Raise ValueError if DataFrame is empty or any columns are missing."""
+        if self.df.empty:
+            raise ValueError("DataFrame is empty. Load data first through from_default or from_files")
+        missing = [c for c in cols if c not in self.df.columns]
+        if missing:
+            raise ValueError(f"Missing required columns: {missing}")
+
+    def _validate_new_colname(self, colname, auto_base=None):
+        """Validate or auto-generate a column name. Raises if it already exists."""
+        if not colname and auto_base:
+            return hf.generate_colname(auto_base, self.df.columns)
+        if colname in self.df.columns:
+            raise ValueError(f"Column '{colname}' already exists in the DataFrame. Please choose a different name.")
+        return colname
+
+    def _prepare_df(self, typing_only=False):
+        """Return a sorted copy of self.df, optionally filtered to typing events."""
+        df = self.df.copy()
+        df = df.sort_values(by=['message_id', 'key_time'])
+        if typing_only:
+            df["event_for_message_type"] = pd.to_numeric(df["event_for_message_type"])
+            df = df[df["event_for_message_type"] == 0]
+        return df
+
     # ── drop helpers ─────────────────────────────────────────────────
 
     def _drop_anonymized(self):
@@ -102,6 +127,26 @@ class KeyLoggingDataFrame:
         after = len(self.df)
         logger.info("Dropped %d events of native speakers", before - after)
 
+    # ── factory helpers ─────────────────────────────────────────────
+
+    @staticmethod
+    def _validate_lh_params(system, include_anonymized, include_nonsense, include_native):
+        if system != "lh":
+            for name, val in [("include_anonymized", include_anonymized),
+                              ("include_nonsense", include_nonsense),
+                              ("include_native", include_native)]:
+                if val is not None:
+                    raise ValueError(f"{name} can only be specified when system='lh'.")
+
+    def _apply_lh_filters(self, include_anonymized, include_nonsense, include_native):
+        if self.system == "lh":
+            if not include_anonymized:
+                self._drop_anonymized()
+            if not include_nonsense:
+                self._drop_nonsense()
+            if not include_native:
+                self._drop_native()
+
     # ── factory class methods ────────────────────────────────────────
 
     @classmethod
@@ -109,13 +154,7 @@ class KeyLoggingDataFrame:
         # 1. verify parameters
         if system not in ("lh", "ll"):
             raise ValueError(f"Invalid system '{system}'. Must be 'lh' (Language Hero) or 'll' (Language Lab).")
-
-        if system != "lh" and include_anonymized is not None:
-            raise ValueError("include_anonymized can only be specified when system='lh'.")
-        if system != "lh" and include_nonsense is not None:
-            raise ValueError("include_nonsense can only be specified when system='lh'.")
-        if system != "lh" and include_native is not None:
-            raise ValueError("include_native can only be specified when system='lh'.")
+        cls._validate_lh_params(system, include_anonymized, include_nonsense, include_native)
 
         # 2. load data
         base_dir = Path(__file__).resolve().parent
@@ -135,13 +174,7 @@ class KeyLoggingDataFrame:
         logger.info("Loaded %d events", len(instance))
 
         # 3. Drop unwanted data
-        if system == "lh":
-            if not include_anonymized:
-                instance._drop_anonymized()
-            if not include_nonsense:
-                instance._drop_nonsense()
-            if not include_native:
-                instance._drop_native()
+        instance._apply_lh_filters(include_anonymized, include_nonsense, include_native)
         logger.info("KeyLoggingDataFrame of shape %s", instance.shape)
 
         return instance
@@ -158,12 +191,7 @@ class KeyLoggingDataFrame:
         # 1. verify parameters
         if system not in ("lh", "ll"):
             raise ValueError(f"Invalid system '{system}'. Must be 'lh' (Language Hero) or 'll' (Language Lab).")
-        if system != "lh" and include_anonymized is not None:
-            raise ValueError("include_anonymized can only be specified when system='lh'.")
-        if system != "lh" and include_nonsense is not None:
-            raise ValueError("include_nonsense can only be specified when system='lh'.")
-        if system != "lh" and include_native is not None:
-            raise ValueError("include_native can only be specified when system='lh'.")
+        cls._validate_lh_params(system, include_anonymized, include_nonsense, include_native)
 
         # 2. open files
         try:
@@ -258,13 +286,7 @@ class KeyLoggingDataFrame:
         logger.info("Loaded %d events", len(instance))
 
         # 9. Drop unwanted data
-        if system == "lh":
-            if not include_anonymized:
-                instance._drop_anonymized()
-            if not include_nonsense:
-                instance._drop_nonsense()
-            if not include_native:
-                instance._drop_native()
+        instance._apply_lh_filters(include_anonymized, include_nonsense, include_native)
         logger.info("Created KeyLoggingDataFrame of shape %s", instance.shape)
 
         return instance
@@ -278,20 +300,14 @@ class KeyLoggingDataFrame:
         output: KeyLoggingDataFrame with new IKI column"""
 
         # 1. verify parameters
-        if "key_time" not in self.df.columns:
-            raise ValueError("DataFrame must contain 'key_time' column to calculate IKI.")
-        if "message_id" not in self.df.columns:
-            raise ValueError("DataFrame must contain 'message_id' column to calculate IKI.")
-        if "event_for_message_type" not in self.df.columns:
-            raise ValueError("ignore_nontyping_events can only be used if 'event_for_message_type' column is present")
+        self._require_columns("key_time", "message_id", "event_for_message_type")
         if colname in self.df.columns:
             raise ValueError(f"Column '{colname}' already exists in the DataFrame. Please choose a different name.")
         if include_nontyping_events is True and include_first_key is False:
             raise ValueError("include_first_key can only be False if include_nontyping_events is False")
 
         # 2. Make copy of dataframe
-        df = self.df.copy()
-        df = df.sort_values(by=['message_id', 'key_time'])
+        df = self._prepare_df()
 
         # 3. Select events specified in parameters and compute IKI
         df["event_for_message_type"] = pd.to_numeric(df["event_for_message_type"])
@@ -328,8 +344,7 @@ class KeyLoggingDataFrame:
             include_nontyping_events: bool, whether to include non-typing events (event_for_message_type != 0) when calculating IKIs (default is False).
         output: KeyLoggingDataFrame with new pause column"""
         # 1. verify parameters
-        if self.df.empty:
-            raise ValueError("DataFrame is empty. load data first through from_default or from_files")
+        self._require_columns("key_time", "message_id", "event_for_message_type")
         if method not in ["fixed", "individualized"]:
             raise ValueError("Only 'fixed' and 'individualized' methods are supported.")
         if method == "fixed":
@@ -348,24 +363,14 @@ class KeyLoggingDataFrame:
                 warnings.warn("No 'a' value specified, using default of 2")
             if not isinstance(a, (int, float)):
                 raise ValueError("Parameter 'a' must be a number.")
-        if "key_time" not in self.df.columns:
-            raise ValueError("DataFrame must contain 'key_time' column to calculate pauses.")
-        if "message_id" not in self.df.columns:
-            raise ValueError("DataFrame must contain 'message_id' column to calculate pauses.")
-        if "event_for_message_type" not in self.df.columns:
-            raise ValueError("ignore_nontyping_events can only be used if 'event_for_message_type' column is present")
-        if not colname:
-            colname = hf.generate_colname("pause", self.df.columns)
-        if colname in self.df.columns:
-            raise ValueError(f"Column '{colname}' already exists in the DataFrame. Please choose a different name.")
+        colname = self._validate_new_colname(colname, auto_base="pause")
         if include_nontyping_events is True and include_first_key is False:
             raise ValueError("include_first_key can only be False if include_nontyping_events is False")
         if iki_colname and iki_colname not in self.df.columns:
             raise ValueError(f"IKI column '{iki_colname}' not found in DataFrame.")
 
         # 2. Make copy of dataframe
-        df = self.df.copy()
-        df = df.sort_values(by=['message_id', 'key_time'])
+        df = self._prepare_df()
 
         # 3. indicate pauses
         if method == "fixed":
@@ -396,22 +401,13 @@ class KeyLoggingDataFrame:
             pause_colname: str, name of the column containing pause information (default is 'pause').
         output: KeyLoggingDataFrame with new pburst column"""
         # 1. verify parameters
-        if self.df.empty:
-            raise ValueError("DataFrame is empty. Load data first through from_default or from_files")
-        if "key_time" not in self.df.columns:
-            raise ValueError("DataFrame must contain 'key_time' column to calculate pbursts.")
-        if "message_id" not in self.df.columns:
-            raise ValueError("DataFrame must contain 'message_id' column to calculate pbursts.")
+        self._require_columns("key_time", "message_id")
         if not pd.api.types.is_bool_dtype(self.df[pause_colname]) and not pd.api.types.is_integer_dtype(self.df[pause_colname]) and not pd.api.types.is_float_dtype(self.df[pause_colname]):
             raise ValueError(f"Pause column '{pause_colname}' must be of boolean or numeric dtype.")
-        if not colname:
-            colname = hf.generate_colname("pburst", self.df.columns)
-        if colname in self.df.columns:
-            raise ValueError(f"Column '{colname}' already exists in the DataFrame. Please choose a different name.")
+        colname = self._validate_new_colname(colname, auto_base="pburst")
 
         # 2. Make copy of dataframe
-        df = self.df.copy()
-        df = df.sort_values(by=['message_id', 'key_time'])
+        df = self._prepare_df()
 
         # Create pburst column
         first_characters = df[df["event_for_message_type"] == 0].sort_values(by=["message_id", "key_time"]).groupby("message_id").head(1).index
@@ -429,24 +425,11 @@ class KeyLoggingDataFrame:
         Add an action column to the dataframe, which contains the action performed with each key event. Actions can be "addition", "deletion", "modification" or "no change".
         """
         # 1. verify parameters
-        if self.df.empty:
-            raise ValueError("DataFrame is empty. load data first through from_default or from_files")
-        if "event_for_message_type" not in self.df.columns:
-            raise ValueError("DataFrame must contain 'event_for_message_type' column to calculate actions.")
-        if "content" not in self.df.columns:
-            raise ValueError("DataFrame must contain 'content' column to calculate actions.")
-        if not colname:
-            colname = hf.generate_colname("action", self.df.columns)
-        elif colname in self.df.columns:
-            raise ValueError(f"Column '{colname}' already exists in the DataFrame. Please choose a different name.")
+        self._require_columns("event_for_message_type", "content")
+        colname = self._validate_new_colname(colname, auto_base="action")
 
-        # 2. copy df
-        df = self.df.copy()
-        df = df.sort_values(by=['message_id', 'key_time'])
-
-        # 3. select edits
-        df["event_for_message_type"] = pd.to_numeric(df["event_for_message_type"])
-        df = df[df['event_for_message_type'] == 0]
+        # 2. copy df and select edits
+        df = self._prepare_df(typing_only=True)
 
         # add a columns "previous_content", which contains the content of the previous event of the message. Contains an empty string if the event is the first event of the message
         df["previous_content"] = df["content"].shift(1)
@@ -515,12 +498,7 @@ class KeyLoggingDataFrame:
         Add 4 columns to the dataframe which indicate the range of the event: start_deletion_span, end_deletion_span, start_addition_span, end_addition_span
         """
         # 1. verify parameters
-        if self.df.empty:
-            raise ValueError("DataFrame is empty. load data first through from_default or from_files")
-        if "event_for_message_type" not in self.df.columns:
-            raise ValueError("DataFrame must contain 'action' column to calculate ranges. Use add_action() to add this column.")
-        if "content" not in self.df.columns:
-            raise ValueError("DataFrame must contain 'content' column to calculate ranges.")
+        self._require_columns("event_for_message_type", "content")
         if not colnames or colnames == [None, None, None, None]:
             colnames = []
             for base in ["start_deletion_span", "end_deletion_span", "start_addition_span", "end_addition_span"]:
@@ -532,15 +510,10 @@ class KeyLoggingDataFrame:
                 if colname and colname in self.df.columns:
                     raise ValueError(f"Column '{colname}' already exists in the DataFrame. Please choose a different name.")
 
-        # 2. copy df
-        df = self.df.copy()
-        df = df.sort_values(by=['message_id', 'key_time'])
+        # 2. copy df and select edits only
+        df = self._prepare_df(typing_only=True)
 
-        # 3. select edits only
-        df["event_for_message_type"] = pd.to_numeric(df["event_for_message_type"])
-        df = df[df['event_for_message_type'] == 0]
-
-        # 4. compute spans
+        # 3. compute spans
         df, added_colnames = self._compute_spans(df, selection, colnames)
 
         # 5. Merge span columns back into self on key_id
@@ -552,12 +525,7 @@ class KeyLoggingDataFrame:
         Add 2 columns to the dataframe which indicate the length of the the deleted sequence and the length of the added sequence
         """
         # 1. verify parameters
-        if self.df.empty:
-            raise ValueError("DataFrame is empty. load data first through from_default or from_files")
-        if "event_for_message_type" not in self.df.columns:
-            raise ValueError("DataFrame must contain 'event_for_message_type' column to calculate lengths.")
-        if "content" not in self.df.columns:
-            raise ValueError("DataFrame must contain 'content' column to calculate lengths.")
+        self._require_columns("event_for_message_type", "content")
         if not colnames or colnames == [None, None]:
             colnames = [
                 hf.generate_colname("length_deletion", self.df.columns) if selection[0] else None,
@@ -570,13 +538,8 @@ class KeyLoggingDataFrame:
                 if colname and colname in self.df.columns:
                     raise ValueError(f"Column '{colname}' already exists in the DataFrame. Please choose a different name.")
 
-        # 2. copy df
-        df = self.df.copy()
-        df = df.sort_values(by=['message_id', 'key_time'])
-
-        # 3. select edits only
-        df["event_for_message_type"] = pd.to_numeric(df["event_for_message_type"])
-        df = df[df['event_for_message_type'] == 0]
+        # 2. copy df and select edits only
+        df = self._prepare_df(typing_only=True)
 
         if selection[0]:  # deletion length
             startcol = hf.generate_colname("start_deletion_span", df.columns)
@@ -601,22 +564,13 @@ class KeyLoggingDataFrame:
         """Add a column to the dataframe annotating in IOB format whether the key event is the beginning of a revision burst (B), inside a revision burst (I) or outside a revision burst (O).
         A revision burst is a sequence of consecutive non-addition events (deletions, substitutions)."""
         # 1. verify parameters
-        if self.df.empty:
-            raise ValueError("DataFrame is empty. Load data first through from_default or from_files")
         if not action_colname:
             raise ValueError("Action column name must be specified.")
-        if action_colname not in self.df.columns:
-            raise ValueError(f"Action column '{action_colname}' not found in DataFrame.")
-        if "message_id" not in self.df.columns:
-            raise ValueError("DataFrame must contain 'message_id' column to calculate rbursts.")
-        if not colname:
-            colname = hf.generate_colname("rburst", self.df.columns)
-        if colname in self.df.columns:
-            raise ValueError(f"Column '{colname}' already exists in the DataFrame. Please choose a different name.")
+        self._require_columns("message_id", action_colname)
+        colname = self._validate_new_colname(colname, auto_base="rburst")
 
         # 2. Make copy of dataframe
-        df = self.df.copy()
-        df = df.sort_values(by=['message_id', 'key_time'])
+        df = self._prepare_df()
 
         # 3. Create rburst column based on action column
         is_revision = df[action_colname].isin(["deletion", "substitution"])
@@ -634,18 +588,10 @@ class KeyLoggingDataFrame:
 
     def add_distance_to_end(self, colname: str = None) -> "KeyLoggingDataFrame":
         # verify parameters
-        if self.df.empty:
-            raise ValueError("DataFrame is empty. load data first through from_default or from_files")
-        if "content" not in self.df.columns:
-            raise ValueError("DataFrame must contain 'content' column to calculate distance to end.")
-        if "key_id" not in self.df.columns:
-            raise ValueError("DataFrame must contain 'key_id' column to calculate distance to end.")
+        self._require_columns("content", "key_id")
 
         # copy df and compute spans using static method
-        df = self.df.copy()
-        df = df.sort_values(by=['message_id', 'key_time'])
-        df["event_for_message_type"] = pd.to_numeric(df["event_for_message_type"])
-        df = df[df['event_for_message_type'] == 0]
+        df = self._prepare_df(typing_only=True)
 
         end_del_colname = hf.generate_colname("end_deletion_span", df.columns)
         end_add_colname = hf.generate_colname("end_addition_span", df.columns)
@@ -662,28 +608,17 @@ class KeyLoggingDataFrame:
     def add_revision(self, colname: str = None, action_colname: str = None):
         """add a column indicating which events are part of a revision according to the IOB format"""
         # 1. verify parameters
-        if self.df.empty:
-            raise ValueError("DataFrame is empty. load data first through from_default or from_files")
         if not action_colname:
             raise ValueError("Action column name must be specified.")
-        if action_colname not in self.df.columns:
-            raise ValueError(f"Action column '{action_colname}' not found in DataFrame.")
-        if "message_id" not in self.df.columns:
-            raise ValueError("DataFrame must contain 'message_id' column to calculate revisions.")
-        if "key_id" not in self.df.columns:
-            raise ValueError("DataFrame must contain 'key_id' column to calculate revisions.")
+        self._require_columns("message_id", "key_id", action_colname)
         if not pd.api.types.is_object_dtype(self.df[action_colname]) and not pd.api.types.is_string_dtype(self.df[action_colname]):
             raise ValueError(f"Action column '{action_colname}' must be of string dtype.")
         if not set(self.df[action_colname].dropna().unique()).issubset({"addition", "deletion", "modification", "no change"}):
             raise ValueError(f"Action column '{action_colname}' must only contain the values 'addition', 'deletion', 'modification' and 'no change'.")
-        if colname in self.df.columns:
-            raise ValueError(f"Column '{colname}' already exists in the DataFrame. Please choose a different name.")
-        if not colname:
-            colname = hf.generate_colname("revision", self.df.columns)
+        colname = self._validate_new_colname(colname, auto_base="revision")
 
         # 2. Make copy of dataframe
-        df = self.df.copy()
-        df = df.sort_values(by=['message_id', 'key_time'])
+        df = self._prepare_df()
 
         # 3. Create revision column
         first_characters = df[df["event_for_message_type"] == 0].sort_values(by=["message_id", "key_time"]).groupby("message_id").head(1).index
@@ -841,19 +776,10 @@ class KeyLoggingDataFrame:
         """
         if level not in ("message", "session", "user"):
             raise ValueError(f"Invalid level '{level}'. Must be 'message', 'session', or 'user'.")
-        if self.df.empty:
-            raise ValueError("DataFrame is empty. Load data first.")
-
-        required = [iki_colname, pause_colname, pburst_colname, rburst_colname, action_colname]
-        missing = [c for c in required if c not in self.df.columns]
-        if missing:
-            raise ValueError(f"Missing required columns: {missing}. "
-                             "Call the corresponding add_* methods first.")
+        self._require_columns(iki_colname, pause_colname, pburst_colname, rburst_colname, action_colname)
 
         # Filter to typing events
-        df = self.df.copy()
-        df["event_for_message_type"] = pd.to_numeric(df["event_for_message_type"])
-        df = df[df["event_for_message_type"] == 0]
+        df = self._prepare_df(typing_only=True)
 
         msg_df = self._compute_message_metrics(
             df, iki_colname, pause_colname, pburst_colname, rburst_colname, action_colname
