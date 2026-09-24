@@ -12,6 +12,30 @@
 
 
 
+# Text-state engine (v0.1)
+
+`keylogging_analysis` 0.1 adds an engine that computes one row of writing-process
+indicators per message from logs that record the **full text at each event**.
+Definitions of every indicator: `docs/superpowers/specs/2026-09-24-text-state-engine-design.md`.
+
+```bash
+uv run keylog-metrics languagelab_export path/to/export --out metrics.csv \
+    --filter class_name="eB 2025-2026"
+```
+
+```python
+from keylogging_analysis import get_adapter, compute_message_metrics, MetricConfig
+
+res = get_adapter("languagelab_export")("path/to/export")
+table, report = compute_message_metrics(res.data, MetricConfig(pause_thresholds_ms=(200, 2000)))
+```
+
+Adapters: `languagelab_export` (2025-26 analyst export), `languagelab_legacy`
+(`ll_default.csv`), `language_hero` (`lh_default.csv`). Each run writes
+`metrics.provenance.json` (engine version and commit, config, input checksums,
+cleaning counts) next to the CSV. The earlier `KeyLoggingDataFrame` API below is
+unchanged.
+
 # How to install?
 
 The packaged can be easily installed with the [pip package installer](https://pypi.org/project/pip/), using the following line in the terminal (both on Windows and on Mac). 

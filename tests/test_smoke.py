@@ -40,7 +40,7 @@ def test_create_empty():
 
 
 def test_version():
-    assert __version__ == "0.0.2"
+    assert __version__ == "0.1.0"
 
 
 def test_df_accessible(sample_kldf):
