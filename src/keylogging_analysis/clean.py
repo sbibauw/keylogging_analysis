@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass, field
 import pandas as pd
 
 from .config import MetricConfig
-from .schema import GROUP
+from .schema import GROUP, first_of_group
 
 
 @dataclass
@@ -20,10 +20,6 @@ class CleaningReport:
         return asdict(self)
 
 
-def _first_of_message(ev: pd.DataFrame) -> pd.Series:
-    return ev[GROUP].ne(ev[GROUP].shift())
-
-
 def clean_events(events: pd.DataFrame, config: MetricConfig):
     """Order events by client time and drop states that change nothing.
 
@@ -37,7 +33,7 @@ def clean_events(events: pd.DataFrame, config: MetricConfig):
     n_reg = regress.groupby(by_source[GROUP], sort=False).sum().astype("int64")
 
     ev = events.sort_values([GROUP, "t_ms", "seq"], kind="stable").reset_index(drop=True)
-    first = _first_of_message(ev)
+    first = first_of_group(ev[GROUP])
     prev_text = ev["text"].shift().where(~first, "").fillna("")
     nochange = ev["text"].eq(prev_text)
     if not config.drop_nochange_events:

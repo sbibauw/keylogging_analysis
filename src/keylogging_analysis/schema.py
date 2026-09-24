@@ -18,6 +18,29 @@ class KeylogData:
     messages: pd.DataFrame
 
 
+def first_of_group(key: pd.Series) -> pd.Series:
+    """True at each group's first row.
+
+    ``key`` is the ``string``-dtype id column, and ``key.ne(key.shift())`` is
+    <NA> at row 0 (no previous value to compare against) instead of True,
+    under either string storage:
+
+    - pyarrow storage (pandas 3.x's default): the result is an arrow
+      ``bool[pyarrow]`` Series, and that extension dtype does not support
+      ``cumsum`` at all, so the very first call raises ``TypeError``.
+    - python storage (pandas 2.2's default): the result is a nullable
+      ``boolean`` Series, whose ``cumsum`` *does* run, but the leading <NA>
+      propagates into the cumulative burst/run id, and pandas' ``groupby``
+      drops NA-keyed rows by default — so the first event of the first
+      message is silently dropped from its burst instead of raising.
+
+    Row 0 has no previous value, which unambiguously makes it a group start,
+    so NA is filled True; the plain numpy bool cast then makes the result
+    cumsum-able (and dtype-stable) under both storages.
+    """
+    return key.ne(key.shift()).fillna(True).astype(bool)
+
+
 def _require(df: pd.DataFrame, columns, name: str) -> None:
     missing = [c for c in columns if c not in df.columns]
     if missing:

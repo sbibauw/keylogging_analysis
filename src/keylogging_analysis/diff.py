@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 from .config import MetricConfig
-from .schema import GROUP
+from .schema import GROUP, first_of_group
 
 EDIT_COLUMNS = ["pos", "n_ins", "n_del", "op", "at_end", "prev_char", "ins_first", "iki_ms", "bulk"]
 
@@ -49,7 +49,7 @@ def edit_between(prev: str, cur: str):
 def derive_edits(events: pd.DataFrame, config: MetricConfig) -> pd.DataFrame:
     """Add edit columns to cleaned events (``clean_events`` output, already sorted)."""
     ev = events.reset_index(drop=True).copy()
-    first = ev[GROUP].ne(ev[GROUP].shift())
+    first = first_of_group(ev[GROUP])
     prev = ev["text"].shift().where(~first, "").fillna("").tolist()
     cur = ev["text"].tolist()
 

@@ -8,37 +8,14 @@ not by a revision, so it is not an R-burst.
 import pandas as pd
 
 from ..config import MetricConfig
-from ..schema import GROUP
+from ..schema import GROUP, first_of_group
 
 REVISION_OPS = ["delete", "replace"]
 
 
-def _first_of_group(key: pd.Series) -> pd.Series:
-    """True at each group's first row.
-
-    ``key`` is the ``string``-dtype id column, and ``key.ne(key.shift())`` is
-    <NA> at row 0 (no previous value to compare against) instead of True,
-    under either string storage:
-
-    - pyarrow storage (pandas 3.x's default): the result is an arrow
-      ``bool[pyarrow]`` Series, and that extension dtype does not support
-      ``cumsum`` at all, so the very first call raises ``TypeError``.
-    - python storage (pandas 2.2's default): the result is a nullable
-      ``boolean`` Series, whose ``cumsum`` *does* run, but the leading <NA>
-      propagates into the cumulative burst/run id, and pandas' ``groupby``
-      drops NA-keyed rows by default — so the first event of the first
-      message is silently dropped from its burst instead of raising.
-
-    Row 0 has no previous value, which unambiguously makes it a group start,
-    so NA is filled True; the plain numpy bool cast then makes the result
-    cumsum-able (and dtype-stable) under both storages.
-    """
-    return key.ne(key.shift()).fillna(True).astype(bool)
-
-
 def pburst_metrics(edits: pd.DataFrame, config: MetricConfig) -> pd.DataFrame:
     key = edits[GROUP]
-    first = _first_of_group(key)
+    first = first_of_group(key)
     net = edits["n_ins"] - edits["n_del"]
     frames = []
     for th in config.pause_thresholds_ms:
@@ -71,14 +48,14 @@ def pburst_metrics(edits: pd.DataFrame, config: MetricConfig) -> pd.DataFrame:
 def rburst_metrics(edits: pd.DataFrame, config: MetricConfig) -> pd.DataFrame:
     key = edits[GROUP]
     is_rev = edits["op"].isin(REVISION_OPS).fillna(False)
-    first = _first_of_group(key)
+    first = first_of_group(key)
     run_start = first | is_rev.ne(is_rev.shift())
     runs = (pd.DataFrame({GROUP: key, "rid": run_start.cumsum(), "is_rev": is_rev,
                           "at_end": edits["at_end"]})
             .groupby("rid", sort=False)
             .agg(**{GROUP: (GROUP, "first"), "is_rev": ("is_rev", "first"),
                     "size": ("is_rev", "size"), "starts_at_end": ("at_end", "first")}))
-    # Same arrow-bool/<NA> issue as _first_of_group: the frame's last run has no
+    # Same arrow-bool/<NA> issue as first_of_group: the frame's last run has no
     # next row to compare against, and is unambiguously the last run of its message.
     runs["is_last"] = runs[GROUP].ne(runs[GROUP].shift(-1)).fillna(True).astype(bool)
 

@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from keylogging_analysis.config import MetricConfig
-from keylogging_analysis.schema import KeylogData, SchemaError, validate
+from keylogging_analysis.schema import KeylogData, SchemaError, first_of_group, validate
 from helpers import events_of, messages_of
 
 
@@ -92,6 +92,21 @@ def test_validate_coerces_whole_number_float_id_like_int():
     out = validate(KeylogData(ev, ms))
     assert out.events["message_id"].tolist() == ["1"]
     assert out.messages["message_id"].tolist() == ["1"]
+
+
+@pytest.mark.parametrize("storage", ["pyarrow", "python"])
+def test_first_of_group_true_at_each_groups_first_row(storage):
+    key = pd.Series(["a", "a", "b", "b", "b", "c"], dtype=pd.StringDtype(storage))
+    out = first_of_group(key)
+    assert out.tolist() == [True, False, True, False, False, True]
+    assert out.dtype == bool
+
+
+def test_first_of_group_empty_series():
+    key = pd.Series([], dtype="string")
+    out = first_of_group(key)
+    assert out.tolist() == []
+    assert out.dtype == bool
 
 
 def test_validate_rejects_missing_required_ids():
