@@ -27,7 +27,8 @@ uv run keylog-metrics languagelab_export path/to/export --out metrics.csv \
 from keylogging_analysis import get_adapter, compute_message_metrics, MetricConfig
 
 res = get_adapter("languagelab_export")("path/to/export")
-table, report = compute_message_metrics(res.data, MetricConfig(pause_thresholds_ms=(200, 2000)))
+table, report = compute_message_metrics(res.data, MetricConfig(pause_thresholds_ms=(200, 2000)),
+                                        adapter_counts=res.counts)
 ```
 
 Adapters: `languagelab_export` (2025-26 analyst export), `languagelab_legacy`

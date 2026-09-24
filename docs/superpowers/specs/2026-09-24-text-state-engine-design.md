@@ -133,7 +133,9 @@ the first event) using common-prefix/common-suffix matching:
 | `bulk` | `op == insert` and `n_ins >= config.bulk_insert_min` |
 
 Common-prefix/suffix diff cannot tell which of several identical characters was
-removed ("aa" → "a"). This affects `pos` only, never counts, and is documented.
+removed ("aa" → "a"). This affects `pos`, `prev_char`, `ins_first` and `at_end`
+(and hence, rarely, pause location and leading-edge classification, both of
+which read `prev_char`/`ins_first`/`at_end`) — never counts (`n_ins`, `n_del`).
 
 ## 5. Indicator definitions (message level)
 
@@ -150,6 +152,13 @@ removed ("aa" → "a"). This affects `pos` only, never counts, and is documented
 **Timing**
 - `typing_span_ms` — last `t_ms` − first `t_ms` (excludes time before the first event)
 - `iki_mean`, `iki_median`, `iki_sd`, `iki_iqr`, `iki_mad` over non-NaN `iki_ms`
+  (`iki_mad` is the **unscaled** median absolute deviation: R's `mad()`
+  multiplies by 1.4826 by default to estimate a normal SD; use
+  `mad(x, constant = 1)` on the R side to match this column)
+- Per §4.1.3: messages with fewer than 2 events are NaN for every metric in
+  this section, including `typing_span_ms` and `pause_time_ms_θ` below (not
+  just the IKI-distribution stats) — a one-event message has no interval to
+  measure, not a zero-length one.
 
 **Pauses** (a pause is an event with `iki_ms >= θ`)
 - `n_pauses_θ`, `pause_time_ms_θ` (sum of those intervals), `pauses_per_min_θ`
@@ -239,7 +248,7 @@ in and out.
 - Keep only `message_link_status == matched_unique` states (the notice's
   recommendation). Ambiguous keys are counted in the report, not guessed.
 - `t_ms` ← `client_timestamp_raw` (ms, confirmed by comparing with the keydown
-  stream); `seq` ← `event_index_by_database_id`.
+  stream); `seq` ← `textarea_state_id`.
 - `session_id` ← `conversation_id`; `task_id` ← `scenario_name`;
   `response_delay_s` ← `student_response_delay_s`.
 - Optional `--filter class_name=...` so a study reads only its classes.
@@ -320,6 +329,7 @@ keylog-metrics <adapter> <input_dir> --out <path.csv> [--config cfg.json] [--fil
 4. **R-burst definition** follows Chenoweth & Hayes (2001) (bursts ended by a revision). The platform's is unknown; cite-check before the paper.
 5. **Clock regressions**: sort by client time and flag. Alternative: exclude
    the message.
-6. **Pause location** uses the character before the insertion point only
-   (between-word vs within-word). Finer categories (sentence boundary, etc.)
-   are left for later.
+6. **Pause location** uses the character before the insertion point *and* the
+   first inserted character (between-word vs within-word), as in §5 and the
+   code — not the character before the insertion point alone. Finer
+   categories (sentence boundary, etc.) are left for later.
