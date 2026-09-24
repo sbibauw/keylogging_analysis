@@ -230,7 +230,7 @@ platform code or the 2024-25 raw stream allows a direct check (decision C).
 pause_thresholds_ms   = (200, 2000)
 bulk_insert_min       = 3       # chars inserted in one event -> bulk/paste flag
 drop_nochange_events  = True
-between_word_chars    = whitespace + ".,;:!?\"'()-"
+between_word_chars    = whitespace + ".,;:!?\"'’´()-"   # ’ (U+2019) and a lone ´ (U+00B4) count as apostrophes
 ```
 
 Every CLI run writes `<out>.csv` and `<out>.provenance.json` containing the

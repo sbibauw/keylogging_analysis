@@ -81,3 +81,14 @@ def test_timing_custom_thresholds_and_column_order():
                                  "iki_mad", "n_pauses_300", "pause_time_ms_300",
                                  "pauses_per_min_300", "share_pauses_between_words_300"]
     assert out.loc["A", "n_pauses_300"] == 3
+
+
+@pytest.mark.parametrize("apostrophe", ["'", "’", "´"])
+def test_typographic_apostrophes_are_word_separators(apostrophe):
+    # "don?t": the 600 ms pause before "t" follows the apostrophe, so it is a
+    # between-word pause whichever apostrophe the device produced (' ’ ´).
+    msg = [(0, "d"), (100, "do"), (200, "don"), (300, "don" + apostrophe),
+           (900, "don" + apostrophe + "t")]
+    r = row(timing_metrics(edits_of(("X", msg)), MetricConfig()), "X")
+    assert r["n_pauses_200"] == 1
+    assert r["share_pauses_between_words_200"] == pytest.approx(1.0)

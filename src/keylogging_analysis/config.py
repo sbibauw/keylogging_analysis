@@ -9,7 +9,9 @@ class MetricConfig:
     pause_thresholds_ms: tuple = (200, 2000)
     bulk_insert_min: int = 3
     drop_nochange_events: bool = True
-    between_word_chars: str = " \t\r\n.,;:!?\"'()-"
+    # ' plus its typographic stand-ins (U+2019 right single quotation mark,
+    # U+00B4 acute accent typed alone): all apostrophes separate words.
+    between_word_chars: str = " \t\r\n.,;:!?\"'\u2019\u00b4()-"
 
     def __post_init__(self):
         th = tuple(int(x) for x in self.pause_thresholds_ms)
