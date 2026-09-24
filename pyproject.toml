@@ -22,12 +22,16 @@ classifiers = [
 license = "BSD-3-Clause"
 license-files = ["LICENSE"]
 dependencies = [
-    "pandas>=1.3",
-    "numpy>=1.21",
+    "pandas>=2.2",
+    "numpy>=2",
+    "pyarrow>=17",
 ]
 
-[project.optional-dependencies]
-dev = ["pytest>=7.0"]
+[project.scripts]
+keylog-metrics = "keylogging_analysis.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
 
 [project.urls]
 Homepage = "https://github.com/kobe-th/keylogging_analysis"
