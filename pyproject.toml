@@ -13,7 +13,7 @@ maintainers = [
 ]
 description = "keylogging_analysis is a Python module aimed at processsing and analysing data from the Language Hero (\"lh\") and Language Lab (\"ll\") datasets. It is useful to researchers interested in L2 language fluency, chatbot-student interactions or keylogging data."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
@@ -22,7 +22,7 @@ classifiers = [
 license = "BSD-3-Clause"
 license-files = ["LICENSE"]
 dependencies = [
-    "pandas>=2.2",
+    "pandas>=3.0",
     "numpy>=2",
     "pyarrow>=17",
 ]

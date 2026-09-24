@@ -279,7 +279,11 @@ keylog-metrics <adapter> <input_dir> --out <path.csv> [--config cfg.json] [--fil
 - uv-managed project: `uv sync` builds `.venv` from `uv.lock`. Python pinned
   in `.python-version` to 3.14 (installed; the old `.venv` was a stale
   `python -m venv` from a previous path and is replaced).
-- Runtime dependencies: `pandas>=2.2`, `numpy>=2`, `pyarrow>=17`. Resolved
+- Runtime dependencies: `pandas>=3.0` (hence Python >=3.11), `numpy>=2`,
+  `pyarrow>=17`. pandas 2.x support was dropped after the final review
+  (2026-09-24): it could not be tested offline, and every consumer runs from
+  `uv.lock`. Code stays independent of the string storage (pyarrow default,
+  python if the caller sets `mode.string_storage`). Resolved
   versions come from the local uv cache where possible (pandas 3.0.5,
   numpy 2.5.x, pyarrow 25.0.1 are cached). Dev group: `pytest`.
 - Build backend stays hatchling.

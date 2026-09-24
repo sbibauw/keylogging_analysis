@@ -28,7 +28,7 @@ def first_of_group(key: pd.Series) -> pd.Series:
     - pyarrow storage (pandas 3.x's default): the result is an arrow
       ``bool[pyarrow]`` Series, and that extension dtype does not support
       ``cumsum`` at all, so the very first call raises ``TypeError``.
-    - python storage (pandas 2.2's default): the result is a nullable
+    - python storage (``mode.string_storage="python"``): the result is a nullable
       ``boolean`` Series, whose ``cumsum`` *does* run, but the leading <NA>
       propagates into the cumulative burst/run id, and pandas' ``groupby``
       drops NA-keyed rows by default — so the first event of the first

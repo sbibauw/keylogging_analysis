@@ -76,8 +76,8 @@ def test_pbursts_dtypes_are_stable_not_pandas_nullable_extension_types():
     # naive NamedAgg sourced from the (string-dtype) message_id column leaks
     # pandas' nullable Int64/Float64 extension dtypes under pyarrow string
     # storage while giving plain int64/float64 under python string storage --
-    # same values, different dtype, which breaks the "same under pandas 2.2
-    # and 3.x" contract. Every per-θ column must come back as plain numpy
+    # same values, different dtype, which breaks the "independent of string storage"
+    # contract. Every per-θ column must come back as plain numpy
     # int64/float64 regardless of how message_id happens to be stored.
     out = pburst_metrics(edits_of(("A", MSG_A)), MetricConfig())
     for th in (200, 2000):
@@ -90,7 +90,7 @@ def test_pbursts_dtypes_are_stable_not_pandas_nullable_extension_types():
 
 def test_pbursts_identical_across_message_id_string_storage():
     # Same edits, message_id given as StringDtype("pyarrow") (pandas 3.x
-    # default) vs StringDtype("python") (pandas 2.2 default): results and
+    # default) vs StringDtype("python") (opt-in via mode.string_storage): results and
     # dtypes must match exactly.
     edits = edits_of(("A", MSG_A))
     edits_pyarrow = edits.copy()

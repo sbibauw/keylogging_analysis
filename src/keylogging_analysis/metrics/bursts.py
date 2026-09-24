@@ -28,7 +28,7 @@ def pburst_metrics(edits: pd.DataFrame, config: MetricConfig) -> pd.DataFrame:
         # result comes back as nullable Int64 rather than plain int64, and that
         # extension dtype then leaks into every downstream max/mean/median below
         # — giving Int64/Float64 outputs under pyarrow storage but plain
-        # int64/float64 under python storage (pandas 2.2 default) for the exact
+        # int64/float64 under python storage (``mode.string_storage="python"``) for the exact
         # same input. Casting right after the agg makes the dtype independent
         # of string storage.
         bursts["size"] = bursts["size"].astype("int64")

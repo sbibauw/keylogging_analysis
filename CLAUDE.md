@@ -25,7 +25,7 @@ KEYLOG_TEST_DATA=<export dir> uv run pytest tests/test_real_languagelab_export.p
 ```
 
 Build system: Hatchling (configured in `pyproject.toml`). Runtime dependencies:
-`pandas>=2.2`, `numpy>=2`, `pyarrow>=17`. Dev dependency: `pytest`.
+`pandas>=3.0`, `numpy>=2`, `pyarrow>=17`. Dev dependency: `pytest`.
 
 ## Project Structure
 
@@ -72,7 +72,8 @@ Known pandas-3 pitfall: with pyarrow-backed string ids, `s.ne(s.shift())` yields
 at row 0 (not `True`), and `bool[pyarrow]` has no `.cumsum()`. `schema.first_of_group()`
 (`.fillna(True).astype(bool)`) is the one safe helper, used by `clean.py`, `diff.py`
 and `metrics/bursts.py`; cast
-aggregation outputs explicitly so dtypes match under both pandas 2.2 and 3.x.
+aggregation outputs explicitly so dtypes do not depend on the string storage (pyarrow
+default, or python if the caller sets `mode.string_storage`).
 
 ## Architecture
 
