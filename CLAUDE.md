@@ -69,8 +69,9 @@ Known legacy bug (not fixed, recorded here so it isn't rediscovered):
 column that is actually filled. The new `language_hero` adapter uses `USER_ID`.
 
 Known pandas-3 pitfall: with pyarrow-backed string ids, `s.ne(s.shift())` yields `<NA>`
-at row 0 (not `True`), and `bool[pyarrow]` has no `.cumsum()`. `metrics/bursts.py`
-works around this with `_first_of_group()` (`.fillna(True).astype(bool)`); cast
+at row 0 (not `True`), and `bool[pyarrow]` has no `.cumsum()`. `schema.first_of_group()`
+(`.fillna(True).astype(bool)`) is the one safe helper, used by `clean.py`, `diff.py`
+and `metrics/bursts.py`; cast
 aggregation outputs explicitly so dtypes match under both pandas 2.2 and 3.x.
 
 ## Architecture

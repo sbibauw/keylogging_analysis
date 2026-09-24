@@ -141,6 +141,25 @@ def test_git_state_invalid_direct_url_json_stays_none_no_exception(tmp_path, mon
     assert prov["git"]["dirty"] is None
 
 
+@pytest.mark.parametrize("content", ["null", "[]", "42", '"text"', {"vcs_info": []}, UnicodeDecodeError])
+def test_git_state_unusable_direct_url_stays_none_no_exception(tmp_path, monkeypatch, content):
+    import keylogging_analysis.provenance as provenance
+
+    monkeypatch.setattr(provenance, "REPO_ROOT", tmp_path)
+
+    class FakeDistribution:
+        def read_text(self, filename):
+            if content is UnicodeDecodeError:
+                raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
+            return content if isinstance(content, str) else json.dumps(content)
+
+    monkeypatch.setattr(provenance, "distribution", lambda name: FakeDistribution())
+
+    prov = build_provenance(adapter="x", inputs=[], config=MetricConfig(),
+                            report=CleaningReport(), n_rows_out=0)
+    assert prov["git"]["commit"] is None
+
+
 def test_git_state_no_direct_url_file_stays_none_no_exception(tmp_path, monkeypatch):
     import keylogging_analysis.provenance as provenance
 

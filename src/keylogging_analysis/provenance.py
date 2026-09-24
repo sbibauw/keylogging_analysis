@@ -39,19 +39,21 @@ def _direct_url_git_info() -> dict | None:
     REPO_ROOT has no ``.git`` checkout to inspect directly.
 
     Returns None on anything missing or malformed -- no distribution, no
-    direct_url.json, invalid JSON, or no vcs_info/commit_id -- so the caller
+    direct_url.json, undecodable or invalid JSON, a non-object, or no vcs_info/commit_id -- so the caller
     falls back to "unknown" the same way a plain pip install would.
     """
     try:
         dist = distribution("keylogging-analysis")
         text = dist.read_text("direct_url.json")
-    except PackageNotFoundError:
+    except (PackageNotFoundError, UnicodeDecodeError):
         return None
     if text is None:
         return None
     try:
         data = json.loads(text)
     except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(data, dict):
         return None
     vcs_info = data.get("vcs_info")
     if not isinstance(vcs_info, dict) or "commit_id" not in vcs_info:
