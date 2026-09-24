@@ -153,9 +153,13 @@ removed ("aa" → "a"). This affects `pos` only, never counts, and is documented
 
 **Pauses** (a pause is an event with `iki_ms >= θ`)
 - `n_pauses_θ`, `pause_time_ms_θ` (sum of those intervals), `pauses_per_min_θ`
-- `share_pauses_between_words_θ` — pauses where the character just before the
-  insertion point is whitespace or punctuation, divided by all pauses before an
-  insertion. Pauses before deletions are excluded from both counts.
+- `share_pauses_between_words_θ` — share of pauses before an insertion that fall
+  between words. A pause is between words when the insertion point is at the
+  start of the text, **or** the character just before it is a separator
+  (`between_word_chars`), **or** the first inserted character is a separator
+  (Inputlog convention: a pause after a finished word, before its space, is a
+  between-word pause). Pauses before deletions are excluded from both counts.
+  NaN when there is no pause before an insertion.
 
 **P-bursts** (per θ). A burst starts at the first event and at every pause ≥ θ,
 and runs until the next pause.
@@ -166,7 +170,8 @@ and runs until the next pause.
 
 **R-bursts.** A run of events ended by a revision. A revision is a maximal run
 of consecutive `delete`/`replace` events; the revision's own events belong to
-no burst.
+no burst. The final run of a message, ended by sending rather than by a
+revision, is not an R-burst (so a message without revisions has none).
 - `n_rbursts`, `rburst_size_max`, `rburst_size_median` (events)
 - `n_revisions` (number of revision runs), `n_revisions_leading_edge` (runs
   starting `at_end`)
@@ -189,6 +194,11 @@ first keystroke. Only the denominator comes from the server.
 - `final_matches_sent` — last state equals `sent_text` (NaN if unknown)
 
 **Carried through:** every `messages` column.
+
+**Messages without events** (in `messages` but with no text state, or whose
+states were all dropped as no-change) still get a row: counts are 0,
+`has_bulk_insert` is False, everything else is NaN. Rates and per-minute values
+are NaN, never infinite, when their denominator is 0.
 
 ### 5.1 Relation to the 2024-25 platform indicators
 
@@ -282,9 +292,14 @@ keylog-metrics <adapter> <input_dir> --out <path.csv> [--config cfg.json] [--fil
 
 ## 11. EPHEC integration (in `ephec-bertrand`)
 
-- `pyproject.toml` + `uv.lock` in the EPHEC repo, depending on
-  `keylogging-analysis`. During development it is an editable path source;
-  at release it switches to a git tag (`v0.1.0`) so results are reproducible.
+- **No Python environment inside the EPHEC repo.** It lives in Dropbox, whose
+  sync has already reverted a git-written file once (2026-09-24); a `.venv` of
+  thousands of files there is asking for more of that. Instead `R/00_setup.R`
+  holds `KEYLOG_ENGINE`: a local checkout path during development (run with
+  `uv run --project <path> keylog-metrics`, which uses the package's own
+  environment outside Dropbox) or, once released, a pinned git URL (run with
+  `uv tool run --from git+…@v0.1.0 keylog-metrics`). The provenance JSON
+  records the exact commit either way.
 - `R/00_setup.R`: add the `25-26` entry to `COHORT_FILES`.
 - New `R/05a_text_state_metrics.R`: checks `SHA256SUMS`, runs
   `uv run keylog-metrics languagelab_export ...` with the EPHEC class filter,
