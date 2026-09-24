@@ -30,12 +30,19 @@ STATE_COLUMNS = ["textarea_state_id", "chat_message_id", "message_link_status",
                  "text_content", "client_timestamp_raw"]
 
 
-def _read_csv(path: Path, columns, types) -> pd.DataFrame:
+def _read_csv(path: Path, columns, types, *, strings_can_be_null: bool = False) -> pd.DataFrame:
+    # strings_can_be_null distinguishes an unquoted empty field (the export's
+    # psql-NULL convention: sent text is unknown) from a quoted "" (a message
+    # that really is empty), instead of collapsing both to "". It only matters
+    # for messages.csv's sent_text; state text_content is read with the
+    # default (an empty text state is a real, meaningful empty string).
     table = pacsv.read_csv(
         path,
         parse_options=pacsv.ParseOptions(newlines_in_values=True),
         convert_options=pacsv.ConvertOptions(include_columns=columns, include_missing_columns=True,
-                                             column_types=types),
+                                             column_types=types,
+                                             strings_can_be_null=strings_can_be_null,
+                                             quoted_strings_can_be_null=False),
     )
     return table.to_pandas()
 
@@ -48,7 +55,7 @@ def load(path: Path, filters=None) -> AdapterResult:
 
     msg_cols = list(RENAME) + PASSTHROUGH
     raw = _read_csv(msg_file, msg_cols, {c: pa.string() for c in msg_cols if c != "student_response_delay_s"}
-                    | {"student_response_delay_s": pa.float64()})
+                    | {"student_response_delay_s": pa.float64()}, strings_can_be_null=True)
     counts["messages_read"] = len(raw)
     raw = apply_filters(raw, filters)
     counts["messages_after_filter"] = len(raw)

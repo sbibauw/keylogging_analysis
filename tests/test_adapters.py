@@ -80,6 +80,30 @@ def test_languagelab_export_filter(export_dir):
     assert res.counts["states_kept"] == 3
 
 
+NULL_VS_EMPTY_MESSAGES_CSV = '''chat_message_id,student_id,wave_number,section,class_name,conversation_id,scenario_id,scenario_name,student_message,student_response_delay_s,client_key_is_unique_to_message,textarea_state_count_for_client_key,last_state_by_client_time_matches_student_message
+21,S_a,1,eB,eB,C_1,7,Demo,,3.0,t,0,
+22,S_a,1,eB,eB,C_1,7,Demo,"",3.0,t,0,
+'''
+NULL_VS_EMPTY_STATES_CSV = (
+    "textarea_state_id,chat_message_id,message_link_status,text_content,client_timestamp_raw\n"
+)
+
+
+def test_languagelab_export_null_vs_empty_sent_text(tmp_path):
+    # An unquoted empty field is psql's NULL (unknown sent text); a quoted ""
+    # is a genuinely empty message. They must not collapse to the same value.
+    (tmp_path / "messages.csv").write_text(NULL_VS_EMPTY_MESSAGES_CSV, encoding="utf-8")
+    (tmp_path / "textarea_states.csv").write_text(NULL_VS_EMPTY_STATES_CSV, encoding="utf-8")
+    res = get_adapter("languagelab_export")(tmp_path)
+    ms = res.data.messages.set_index("message_id")
+    assert pd.isna(ms.loc["21", "sent_text"])
+    assert ms.loc["22", "sent_text"] == ""
+    # other string passthrough columns and id parsing still behave
+    assert ms.loc["21", "class_name"] == "eB"
+    assert ms.loc["21", "user_id"] == "S_a"
+    assert ms.loc["22", "session_id"] == "C_1"
+
+
 def test_languagelab_export_missing_file(tmp_path):
     with pytest.raises(FileNotFoundError, match="textarea_states.csv"):
         (tmp_path / "messages.csv").write_text(MESSAGES_CSV)
