@@ -69,8 +69,10 @@ def load(path: Path, filters=None) -> AdapterResult:
     unique = st["message_link_status"].eq("matched_unique").fillna(False)
     counts["states_not_matched_unique"] = int((~unique).sum())
     st = st[unique]
+    # Counts matched states whose message is absent from the in-scope messages
+    # table, for any reason (filtered out, or simply not present in messages.csv).
     in_scope = st["chat_message_id"].isin(messages["message_id"])
-    counts["states_outside_filter"] = int((~in_scope).sum())
+    counts["states_message_not_in_scope"] = int((~in_scope).sum())
     st = st[in_scope]
     counts["states_kept"] = len(st)
 

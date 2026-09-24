@@ -68,7 +68,7 @@ def test_languagelab_export_mapping(export_dir):
     assert ev["seq"].tolist() == [101, 102, 103, 105]
     assert ev["t_ms"].tolist() == [1000.5, 1100.0, 1150.0, 7.0]
     assert res.counts == {"messages_read": 3, "messages_after_filter": 3, "states_read": 5,
-                          "states_not_matched_unique": 1, "states_outside_filter": 0,
+                          "states_not_matched_unique": 1, "states_message_not_in_scope": 0,
                           "states_kept": 4}
     assert [p.name for p in res.inputs] == ["messages.csv", "textarea_states.csv"]
 
@@ -76,7 +76,7 @@ def test_languagelab_export_mapping(export_dir):
 def test_languagelab_export_filter(export_dir):
     res = get_adapter("languagelab_export")(export_dir, {"class_name": ["eB 2025-2026"]})
     assert sorted(res.data.messages["message_id"].tolist()) == ["11", "12"]
-    assert res.counts["states_outside_filter"] == 1
+    assert res.counts["states_message_not_in_scope"] == 1
     assert res.counts["states_kept"] == 3
 
 
