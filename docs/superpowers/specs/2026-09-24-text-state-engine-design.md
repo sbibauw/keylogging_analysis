@@ -1,6 +1,6 @@
 # Text-state metrics engine — design
 
-**Date:** 2026-09-24 · **Status:** draft for review · **Branch:** `engine-v0.1`
+**Date:** 2026-09-24 · **Status:** approved 2026-09-24 · **Branch:** `engine-v0.1`
 **First consumer:** EPHEC written-fluency study (`ephec-bertrand` repo), cohort 2025-26.
 
 ## 1. Purpose
@@ -209,7 +209,7 @@ platform code or the 2024-25 raw stream allows a direct check (decision C).
 
 ```
 pause_thresholds_ms   = (200, 2000)
-bulk_insert_min       = 5       # chars inserted in one event -> bulk/paste flag
+bulk_insert_min       = 3       # chars inserted in one event -> bulk/paste flag
 drop_nochange_events  = True
 between_word_chars    = whitespace + ".,;:!?\"'()-"
 ```
@@ -293,12 +293,13 @@ keylog-metrics <adapter> <input_dir> --out <path.csv> [--config cfg.json] [--fil
   mapping, filters, 2024-25 name mapping), the 25-26 copy task and vocabulary.
   Those are the next spec.
 
-## 12. Decisions taken with defaults — please confirm or change
+## 12. Decisions (confirmed by S. Bibauw, 2026-09-24)
 
 1. **No-change events are dropped** (0.28 %). Alternative: keep them as
    zero-size events (they would still split IKIs).
-2. **Bulk-insert threshold = 5 characters** in a single event. It is flagged, not
-   removed; the study decides what to exclude.
+2. **Bulk-insert threshold = 3 characters** in a single event. It is flagged, not
+   removed; the study decides what to exclude. (Autocorrect is a `replace`, not
+   an insert, so it is not flagged by this rule.)
 3. **Burst size is counted in events**, like 2024-25, with net characters as a
    second column.
 4. **R-burst definition** follows Chenoweth & Hayes (2001) (bursts ended by a revision). The platform's is unknown; cite-check before the paper.
