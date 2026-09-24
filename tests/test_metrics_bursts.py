@@ -1,3 +1,4 @@
+import pandas as pd
 import pytest
 
 from keylogging_analysis.config import MetricConfig
@@ -68,3 +69,38 @@ def test_rbursts_two_revisions():
     # typing runs before a revision: [a, ab, abc] size 3, [abd, abde] size 2
     assert (r["n_rbursts"], r["rburst_size_max"], r["rburst_size_median"]) == (2, 3, 2.5)
     assert (r["n_revisions"], r["n_revisions_leading_edge"]) == (2, 2)
+
+
+def test_pbursts_dtypes_are_stable_not_pandas_nullable_extension_types():
+    # burst_size_max_θ is drawn from message_id-keyed groupby aggregations; a
+    # naive NamedAgg sourced from the (string-dtype) message_id column leaks
+    # pandas' nullable Int64/Float64 extension dtypes under pyarrow string
+    # storage while giving plain int64/float64 under python string storage --
+    # same values, different dtype, which breaks the "same under pandas 2.2
+    # and 3.x" contract. Every per-θ column must come back as plain numpy
+    # int64/float64 regardless of how message_id happens to be stored.
+    out = pburst_metrics(edits_of(("A", MSG_A)), MetricConfig())
+    for th in (200, 2000):
+        assert out[f"n_bursts_{th}"].dtype == "int64"
+        assert out[f"burst_size_max_{th}"].dtype == "int64"
+        assert out[f"burst_size_mean_{th}"].dtype == "float64"
+        assert out[f"burst_size_median_{th}"].dtype == "float64"
+        assert out[f"burst_chars_mean_{th}"].dtype == "float64"
+
+
+def test_pbursts_identical_across_message_id_string_storage():
+    # Same edits, message_id given as StringDtype("pyarrow") (pandas 3.x
+    # default) vs StringDtype("python") (pandas 2.2 default): results and
+    # dtypes must match exactly.
+    edits = edits_of(("A", MSG_A))
+    edits_pyarrow = edits.copy()
+    edits_pyarrow["message_id"] = edits_pyarrow["message_id"].astype(pd.StringDtype("pyarrow"))
+    edits_python = edits.copy()
+    edits_python["message_id"] = edits_python["message_id"].astype(pd.StringDtype("python"))
+
+    out_pyarrow = pburst_metrics(edits_pyarrow, MetricConfig())
+    out_python = pburst_metrics(edits_python, MetricConfig())
+
+    pd.testing.assert_series_equal(out_pyarrow.dtypes, out_python.dtypes, check_index_type=False)
+    for col in out_pyarrow.columns:
+        assert out_pyarrow[col].tolist() == out_python[col].tolist()
