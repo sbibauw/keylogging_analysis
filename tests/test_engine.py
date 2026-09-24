@@ -38,9 +38,12 @@ def test_message_without_events():
               "n_rbursts", "n_revisions", "n_bulk_inserts", "n_time_regressions",
               "n_nochange_dropped"]:
         assert d[c] == 0, c
-    assert d["pause_time_ms_200"] == 0
     assert d["has_bulk_insert"] == False  # noqa: E712
-    for c in ["final_length", "typing_span_ms", "iki_median", "cpm_product", "burst_size_max_200"]:
+    # spec §5: a message without events (fewer than 2, per §4.1.3) has NaN for
+    # everything but the explicit counts/flags above -- including pause_time_ms,
+    # not just typing_span_ms.
+    for c in ["final_length", "typing_span_ms", "iki_median", "cpm_product",
+              "burst_size_max_200", "pause_time_ms_200"]:
         assert isnan(d[c]), c
 
 

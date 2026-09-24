@@ -38,8 +38,10 @@ def compute_message_metrics(data: KeylogData, config: MetricConfig = None,
 
     for c in count_columns(config):
         out[c] = out[c].fillna(0).astype("int64")
-    for th in config.pause_thresholds_ms:
-        out[f"pause_time_ms_{th}"] = out[f"pause_time_ms_{th}"].fillna(0.0)
+    # pause_time_ms_<theta> is left as NaN (not 0) for messages with fewer than
+    # 2 events, including messages without events at all -- spec §4.1.3/§5:
+    # it is a timing metric, not a count, so it follows the same NaN rule as
+    # typing_span_ms rather than the STATIC_COUNTS fillna(0) above.
     out["has_bulk_insert"] = out["has_bulk_insert"].astype("boolean").fillna(False).astype(bool)
     out["final_matches_sent"] = out["final_matches_sent"].astype("boolean")
     return out.reset_index(), report

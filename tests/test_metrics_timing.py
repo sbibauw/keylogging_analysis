@@ -52,9 +52,12 @@ def test_timing_message_b_punctuation_counts_as_between_words():
 
 def test_timing_single_event_is_nan_not_inf():
     r = row(timing_metrics(edits_of(("C", MSG_C)), MetricConfig()), "C")
-    assert r["typing_span_ms"] == 0
+    # spec §4.1.3: messages with fewer than 2 events keep a row with NaN timing
+    # metrics, including typing_span_ms and pause_time_ms_<theta>.
+    assert isnan(r["typing_span_ms"])
     assert all(isnan(r[k]) for k in ["iki_mean", "iki_median", "iki_sd", "iki_iqr", "iki_mad"])
     assert r["n_pauses_200"] == 0
+    assert isnan(r["pause_time_ms_200"])
     assert isnan(r["pauses_per_min_200"])
     assert isnan(r["share_pauses_between_words_200"])
 

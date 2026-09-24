@@ -6,8 +6,15 @@ from ..schema import GROUP
 
 
 def span_ms(edits: pd.DataFrame) -> pd.Series:
+    """Last t_ms minus first t_ms per message; NaN for messages with < 2 events.
+
+    Spec §4.1.3: messages with fewer than 2 events keep a row with NaN timing
+    metrics. A one-event group's max == min, which would otherwise silently
+    read as a real, zero-length span instead of "unknown".
+    """
     g = edits.groupby(GROUP, sort=False)["t_ms"]
-    return (g.max() - g.min()).astype("float64")
+    span = (g.max() - g.min()).astype("float64")
+    return span.where(g.size() >= 2, np.nan)
 
 
 def safe_ratio(num: pd.Series, den: pd.Series) -> pd.Series:

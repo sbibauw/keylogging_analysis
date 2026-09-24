@@ -22,7 +22,9 @@ def timing_metrics(edits: pd.DataFrame, config: MetricConfig) -> pd.DataFrame:
         pause = iki.ge(th).fillna(False)
         n = pause.groupby(key, sort=False).sum().astype("int64")
         out[f"n_pauses_{th}"] = n
-        out[f"pause_time_ms_{th}"] = iki.where(pause, 0.0).groupby(key, sort=False).sum()
+        pause_time = iki.where(pause, 0.0).groupby(key, sort=False).sum()
+        # spec §4.1.3: fewer than 2 events -> NaN, not a spurious 0 ms of pausing.
+        out[f"pause_time_ms_{th}"] = pause_time.where(out["typing_span_ms"].notna())
         out[f"pauses_per_min_{th}"] = per_minute(n, out["typing_span_ms"])
         den = (pause & before_insert).groupby(key, sort=False).sum()
         num = (pause & before_insert & between).groupby(key, sort=False).sum()
