@@ -4,7 +4,7 @@ import hashlib
 import json
 import platform
 import subprocess
-from importlib.metadata import PackageNotFoundError, version
+from importlib.metadata import PackageNotFoundError, distribution, version
 from pathlib import Path
 
 import pandas as pd
@@ -33,28 +33,62 @@ def _pkg_version() -> str:
         return __version__
 
 
-def _git_state() -> dict:
-    if not (REPO_ROOT / ".git").exists():
-        return {"commit": None, "dirty": None}
+def _direct_url_git_info() -> dict | None:
+    """Git info from importlib.metadata's direct_url.json, for an install
+    from a git URL (e.g. ``uv tool run --from git+...@v0.1.0``), where
+    REPO_ROOT has no ``.git`` checkout to inspect directly.
+
+    Returns None on anything missing or malformed -- no distribution, no
+    direct_url.json, invalid JSON, or no vcs_info/commit_id -- so the caller
+    falls back to "unknown" the same way a plain pip install would.
+    """
     try:
-        commit = subprocess.run(["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD"],
-                                capture_output=True, text=True, check=True).stdout.strip()
-        status = subprocess.run(["git", "-C", str(REPO_ROOT), "status", "--porcelain",
-                                 "--untracked-files=no"],
-                                capture_output=True, text=True, check=True).stdout
-        return {"commit": commit, "dirty": bool(status.strip())}
-    except (OSError, subprocess.CalledProcessError):
-        return {"commit": None, "dirty": None}
+        dist = distribution("keylogging-analysis")
+        text = dist.read_text("direct_url.json")
+    except PackageNotFoundError:
+        return None
+    if text is None:
+        return None
+    try:
+        data = json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    vcs_info = data.get("vcs_info")
+    if not isinstance(vcs_info, dict) or "commit_id" not in vcs_info:
+        return None
+    info = {"commit": vcs_info["commit_id"], "source": "direct_url", "dirty": None}
+    if "requested_revision" in vcs_info:
+        info["requested_revision"] = vcs_info["requested_revision"]
+    return info
 
 
-def build_provenance(*, adapter, inputs, config, report, n_rows_out, argv=None) -> dict:
-    return {
+def _git_state() -> dict:
+    if (REPO_ROOT / ".git").exists():
+        try:
+            commit = subprocess.run(["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD"],
+                                    capture_output=True, text=True, check=True).stdout.strip()
+            status = subprocess.run(["git", "-C", str(REPO_ROOT), "status", "--porcelain",
+                                     "--untracked-files=no"],
+                                    capture_output=True, text=True, check=True).stdout
+            return {"commit": commit, "dirty": bool(status.strip()), "source": "checkout"}
+        except (OSError, subprocess.CalledProcessError):
+            return {"commit": None, "dirty": None, "source": "checkout"}
+    direct_url = _direct_url_git_info()
+    if direct_url is not None:
+        return direct_url
+    return {"commit": None, "dirty": None, "source": None}
+
+
+def build_provenance(*, adapter, inputs, config, report, n_rows_out, output_path=None,
+                     argv=None) -> dict:
+    prov = {
         "engine": "keylogging_analysis",
         "version": _pkg_version(),
         "git": _git_state(),
         "created_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "python": platform.python_version(),
         "pandas": pd.__version__,
+        "versions": {"pyarrow": version("pyarrow")},
         "adapter": adapter,
         "inputs": [{"path": str(p), "sha256": sha256_file(p), "bytes": Path(p).stat().st_size}
                    for p in inputs],
@@ -63,6 +97,12 @@ def build_provenance(*, adapter, inputs, config, report, n_rows_out, argv=None) 
         "rows_out": int(n_rows_out),
         "argv": list(argv) if argv is not None else None,
     }
+    if output_path is not None:
+        # Computed after the CSV is written, over the file as it actually
+        # landed on disk -- lets a downstream reader verify the CSV wasn't
+        # altered in transit without trusting rows_out alone.
+        prov["output"] = {"sha256": sha256_file(output_path)}
+    return prov
 
 
 def write_provenance(prov: dict, path: Path) -> None:

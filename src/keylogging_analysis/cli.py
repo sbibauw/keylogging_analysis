@@ -37,7 +37,8 @@ def main(argv=None) -> int:
     table.to_csv(args.out, index=False)
     full_argv = ["keylog-metrics", *(argv if argv is not None else sys.argv[1:])]
     prov = build_provenance(adapter=args.adapter, inputs=res.inputs, config=config,
-                            report=report, n_rows_out=len(table), argv=full_argv)
+                            report=report, n_rows_out=len(table), output_path=args.out,
+                            argv=full_argv)
     write_provenance(prov, provenance_path(args.out))
     print(f"keylog-metrics: {len(table)} messages, {report.n_events_out} events "
           f"({report.n_nochange_dropped} no-change dropped) -> {args.out}", file=sys.stderr)

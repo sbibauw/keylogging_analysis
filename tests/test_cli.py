@@ -1,9 +1,11 @@
 import json
+from importlib.metadata import version
 
 import pandas as pd
 import pytest
 
 from keylogging_analysis.cli import main, parse_filters
+from keylogging_analysis.provenance import sha256_file
 
 MESSAGES_CSV = '''chat_message_id,student_id,conversation_id,scenario_name,student_message,student_response_delay_s,class_name
 1,S_a,C_1,T1,"line one
@@ -45,6 +47,8 @@ def test_cli_writes_csv_and_provenance(export_dir, tmp_path):
     assert prov["rows_out"] == 2
     assert {i["path"].split("/")[-1] for i in prov["inputs"]} == {"messages.csv", "textarea_states.csv"}
     assert prov["cleaning"]["adapter_counts"]["states_kept"] == 4
+    assert prov["output"] == {"sha256": sha256_file(out)}
+    assert prov["versions"]["pyarrow"] == version("pyarrow")
 
 
 def test_cli_roundtrip_text_with_newlines_and_quotes(export_dir, tmp_path):
