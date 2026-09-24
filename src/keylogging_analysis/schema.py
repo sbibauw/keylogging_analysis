@@ -24,6 +24,26 @@ def _require(df: pd.DataFrame, columns, name: str) -> None:
         raise SchemaError(f"{name} is missing required column(s): {', '.join(missing)}")
 
 
+def _to_id_string(s: pd.Series) -> pd.Series:
+    """Coerce an id column to string, treating whole-number floats as ints.
+
+    Without this, an id that happens to arrive as float64 (e.g. from an Excel
+    read) stringifies as "1.0" while the same id as int64 stringifies as "1",
+    so identical ids compare unequal across events/messages and look orphaned.
+    """
+    if pd.api.types.is_float_dtype(s):
+        non_na = s.dropna()
+        if len(non_na) and (non_na == non_na.round()).all():
+            s = s.astype("Int64")
+    return s.astype("string")
+
+
+def _require_no_na(df: pd.DataFrame, column: str, name: str) -> None:
+    n = int(df[column].isna().sum())
+    if n:
+        raise SchemaError(f"{name}.{column} has {n} missing value(s)")
+
+
 def validate(data: KeylogData) -> KeylogData:
     """Check the canonical contract and return a type-coerced copy."""
     ev, ms = data.events, data.messages
@@ -31,16 +51,21 @@ def validate(data: KeylogData) -> KeylogData:
     _require(ms, MESSAGE_REQUIRED, "messages")
 
     ev = ev[EVENT_COLUMNS].copy()
-    ev["message_id"] = ev["message_id"].astype("string")
+    ev["message_id"] = _to_id_string(ev["message_id"])
     ev["t_ms"] = pd.to_numeric(ev["t_ms"]).astype("float64")
     ev["text"] = ev["text"].astype("string").fillna("")
-    ev["seq"] = pd.to_numeric(ev["seq"]).astype("int64")
+    ev["seq"] = pd.to_numeric(ev["seq"])
+    if ev["seq"].isna().any():
+        raise SchemaError(f"{int(ev['seq'].isna().sum())} events have a missing seq")
+    ev["seq"] = ev["seq"].astype("int64")
     if ev["t_ms"].isna().any():
         raise SchemaError(f"{int(ev['t_ms'].isna().sum())} events have a missing t_ms")
+    _require_no_na(ev, "message_id", "events")
 
     ms = ms.copy()
     for c in MESSAGE_REQUIRED:
-        ms[c] = ms[c].astype("string")
+        ms[c] = _to_id_string(ms[c])
+        _require_no_na(ms, c, "messages")
     for c in ("task_id", "sent_text"):
         if c in ms.columns:
             ms[c] = ms[c].astype("string")

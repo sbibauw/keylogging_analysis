@@ -77,3 +77,31 @@ def test_validate_rejects_missing_time():
     ev.loc[0, "t_ms"] = np.nan
     with pytest.raises(SchemaError, match="t_ms"):
         validate(KeylogData(ev, messages_of(["a"])))
+
+
+def test_validate_rejects_missing_seq():
+    ev = events_of(("a", [(0, "x")]))
+    ev.loc[0, "seq"] = np.nan
+    with pytest.raises(SchemaError, match="seq"):
+        validate(KeylogData(ev, messages_of(["a"])))
+
+
+def test_validate_coerces_whole_number_float_id_like_int():
+    ev = pd.DataFrame({"message_id": [1.0], "t_ms": [0.0], "text": ["a"], "seq": [0]})
+    ms = messages_of([1])
+    out = validate(KeylogData(ev, ms))
+    assert out.events["message_id"].tolist() == ["1"]
+    assert out.messages["message_id"].tolist() == ["1"]
+
+
+def test_validate_rejects_missing_required_ids():
+    ev_bad = events_of(("a", [(0, "x")]))
+    ev_bad.loc[0, "message_id"] = None
+    with pytest.raises(SchemaError, match="message_id"):
+        validate(KeylogData(ev_bad, messages_of(["a"])))
+
+    ev = events_of(("a", [(0, "x")]))
+    ms_bad = messages_of(["a"])
+    ms_bad.loc[0, "session_id"] = None
+    with pytest.raises(SchemaError, match="session_id"):
+        validate(KeylogData(ev, ms_bad))
