@@ -51,7 +51,8 @@ legacy class below:
 - `metrics/bursts.py` — P-bursts (per pause threshold), R-bursts
 - `metrics/product.py` — volume, revision, process/product, rates, quality flags
 - `metrics/__init__.py` — `compute_message_metrics(data, config)`, `count_columns`
-- `adapters/base.py` — adapter registry contract
+- `adapters/__init__.py` — registry: adapter name -> loader (`ADAPTERS`, `get_adapter`)
+- `adapters/base.py` — shared `AdapterResult`, `apply_filters`, `require_file`
 - `adapters/languagelab_export.py` — 2025-26 LanguageLab analyst export
 - `adapters/languagelab_legacy.py` — old `ll` schema (`ll_default.csv`)
 - `adapters/language_hero.py` — `lh` schema (`lh_default.csv`)
