@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "keylogging-analysis"
-version = "0.0.2"
+version = "0.1.0"
 authors = [
   {name="Kobe Thonissen", email="kobe.thonissen@gmail.com"}
 ]
@@ -13,7 +13,7 @@ maintainers = [
 ]
 description = "keylogging_analysis is a Python module aimed at processsing and analysing data from the Language Hero (\"lh\") and Language Lab (\"ll\") datasets. It is useful to researchers interested in L2 language fluency, chatbot-student interactions or keylogging data."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
@@ -22,12 +22,16 @@ classifiers = [
 license = "BSD-3-Clause"
 license-files = ["LICENSE"]
 dependencies = [
-    "pandas>=1.3",
-    "numpy>=1.21",
+    "pandas>=3.0",
+    "numpy>=2",
+    "pyarrow>=17",
 ]
 
-[project.optional-dependencies]
-dev = ["pytest>=7.0"]
+[project.scripts]
+keylog-metrics = "keylogging_analysis.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
 
 [project.urls]
 Homepage = "https://github.com/kobe-th/keylogging_analysis"

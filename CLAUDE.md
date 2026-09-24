@@ -9,12 +9,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build, Install and Test
 
 ```bash
-pip install -e .                # editable install for development
-pip install -e ".[dev]"         # with dev dependencies (pytest)
-python -m pytest tests/ -v      # run tests
+uv sync                                  # install/update the environment
+uv run pytest -q                         # run the test suite (95 passed + 5 skipped)
+uv run keylog-metrics --help             # CLI entry point
 ```
 
-Build system: Hatchling (configured in `pyproject.toml`). Dependencies: pandas, numpy.
+Add `--offline` to any `uv run ...` command when the network is unavailable; every
+dependency needed is already in the uv cache.
+
+Opt-in real-data test (skipped unless `KEYLOG_TEST_DATA` is set — never points at
+data inside this repo):
+
+```bash
+KEYLOG_TEST_DATA=<export dir> uv run pytest tests/test_real_languagelab_export.py -v -s
+```
+
+Build system: Hatchling (configured in `pyproject.toml`). Runtime dependencies:
+`pandas>=3.0`, `numpy>=2`, `pyarrow>=17`. Dev dependency: `pytest`.
 
 ## Project Structure
 
@@ -23,6 +34,46 @@ Build system: Hatchling (configured in `pyproject.toml`). Dependencies: pandas, 
 - `src/keylogging_analysis/__init__.py` — Exports `KeyLoggingDataFrame` and `__version__`.
 - `src/keylogging_analysis/data/` — Default CSV datasets (`lh_default.csv` ~588k rows, `ll_default.csv` ~23 rows) and JSON filter lists (`lh_nonsense_message_ids.json`, `lh_native_message_ids.json`).
 - `tests/test_smoke.py` — Smoke tests for the core pipeline.
+
+## Text-state engine
+
+Added in v0.1 (spec: `docs/superpowers/specs/2026-09-24-text-state-engine-design.md`;
+plan: `docs/superpowers/plans/2026-09-24-text-state-engine.md`). It computes one row of
+writing-process indicators per message from logs that record the full text at each
+event ("text states"), as a set of pure functions on DataFrames, independent of the
+legacy class below:
+
+- `schema.py` — `KeylogData`, column contracts, `validate()`
+- `config.py` — `MetricConfig` (frozen dataclass, JSON round-trip)
+- `clean.py` — event ordering, duplicate/no-change handling, `CleaningReport`
+- `diff.py` — per-event edit derivation (`edit_between`, `derive_edits`): what changed, where
+- `metrics/timing.py` — intervals, pauses, pause location
+- `metrics/bursts.py` — P-bursts (per pause threshold), R-bursts
+- `metrics/product.py` — volume, revision, process/product, rates, quality flags
+- `metrics/__init__.py` — `compute_message_metrics(data, config)`, `count_columns`
+- `adapters/__init__.py` — registry: adapter name -> loader (`ADAPTERS`, `get_adapter`)
+- `adapters/base.py` — shared `AdapterResult`, `apply_filters`, `require_file`
+- `adapters/languagelab_export.py` — 2025-26 LanguageLab analyst export
+- `adapters/languagelab_legacy.py` — old `ll` schema (`ll_default.csv`)
+- `adapters/language_hero.py` — `lh` schema (`lh_default.csv`)
+- `provenance.py` — engine version, git commit, config, input checksums, cleaning counts
+- `cli.py` — `keylog-metrics` entry point
+
+`classes.py` (`KeyLoggingDataFrame`) and `help_functions.py` are **legacy**: they have
+external users (Thonissen) and are not to be extended — new writing-process metrics go
+in the modules above.
+
+Known legacy bug (not fixed, recorded here so it isn't rediscovered):
+`KeyLoggingDataFrame._user_id_col` resolves the user id column to `PERSONA_ID` for
+`system="lh"`, but `PERSONA_ID` is empty throughout `lh_default.csv` — `USER_ID` is the
+column that is actually filled. The new `language_hero` adapter uses `USER_ID`.
+
+Known pandas-3 pitfall: with pyarrow-backed string ids, `s.ne(s.shift())` yields `<NA>`
+at row 0 (not `True`), and `bool[pyarrow]` has no `.cumsum()`. `schema.first_of_group()`
+(`.fillna(True).astype(bool)`) is the one safe helper, used by `clean.py`, `diff.py`
+and `metrics/bursts.py`; cast
+aggregation outputs explicitly so dtypes do not depend on the string storage (pyarrow
+default, or python if the caller sets `mode.string_storage`).
 
 ## Architecture
 
@@ -86,7 +137,9 @@ Progress messages use `logging.info()`. Implicit default warnings use `warnings.
 
 ## Development Status
 
-Version 0.0.2. Remaining stubs (raise `NotImplementedError`):
+Version 0.1.0. This section covers the legacy `KeyLoggingDataFrame` API only —
+see "Text-state engine" above for the new module set. Remaining stubs (raise
+`NotImplementedError`) in the legacy class:
 - `pause_dataframe()`, `revision_dataframe()`, `pburst_analysis()`
 - `_drop_native()` — message IDs need verification (currently same as nonsense list; marked with TODO)
 
