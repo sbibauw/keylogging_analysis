@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 uv sync                                  # install/update the environment
-uv run pytest -q                         # run the test suite (95 passed + 5 skipped)
+uv run pytest -q                         # run the test suite (116 passed + 5 skipped)
 uv run keylog-metrics --help             # CLI entry point
 ```
 

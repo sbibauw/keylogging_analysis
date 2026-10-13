@@ -69,6 +69,23 @@ def test_rbursts_two_revisions():
     # typing runs before a revision: [a, ab, abc] size 3, [abd, abde] size 2
     assert (r["n_rbursts"], r["rburst_size_max"], r["rburst_size_median"]) == (2, 3, 2.5)
     assert (r["n_revisions"], r["n_revisions_leading_edge"]) == (2, 2)
+    # with the final, send-terminated run [abx] (size 1): runs 3, 2, 1
+    assert (r["rburst_size_max_with_final"], r["rburst_size_median_with_final"]) == (3, 2)
+
+
+def test_rburst_sizes_with_final_run_when_no_revision():
+    # a, ab, abc: no revision, so no R-burst proper, but one run of 3 events
+    r = row(rburst_metrics(edits_of(("N", [(0, "a"), (10, "ab"), (20, "abc")])), MetricConfig()), "N")
+    assert r["n_rbursts"] == 0 and isnan(r["rburst_size_median"])
+    assert (r["rburst_size_max_with_final"], r["rburst_size_median_with_final"]) == (3, 3)
+
+
+def test_rburst_sizes_with_final_run_when_message_ends_on_a_revision():
+    # ab, abc, ab: the message ends on the revision, so there is no final typing
+    # run to add; the only run is [ab, abc], size 2 under both conventions
+    r = row(rburst_metrics(edits_of(("E", [(0, "ab"), (10, "abc"), (20, "ab")])), MetricConfig()), "E")
+    assert (r["n_rbursts"], r["rburst_size_max"]) == (1, 2)
+    assert (r["rburst_size_max_with_final"], r["rburst_size_median_with_final"]) == (2, 2)
 
 
 def test_pbursts_dtypes_are_stable_not_pandas_nullable_extension_types():

@@ -182,6 +182,11 @@ of consecutive `delete`/`replace` events; the revision's own events belong to
 no burst. The final run of a message, ended by sending rather than by a
 revision, is not an R-burst (so a message without revisions has none).
 - `n_rbursts`, `rburst_size_max`, `rburst_size_median` (events)
+- `rburst_size_max_with_final`, `rburst_size_median_with_final` (events) — the
+  same sizes over **all** non-revision runs, the final send-terminated one
+  included. This is the 2024-25 platform's convention (§5.1): a message without
+  revisions is one run the size of the whole message, not NaN. NaN only when a
+  message has no non-revision event.
 - `n_revisions` (number of revision runs), `n_revisions_leading_edge` (runs
   starting `at_end`)
 
@@ -215,12 +220,16 @@ are NaN, never infinite, when their denominator is 0.
 |---|---|---|
 | `num_bursts_200/2000` | `n_bursts_200/2000` | same definition, up to how the platform treated the first burst and non-text keys |
 | `max/mean/median_burst_size_*` | `burst_size_max/mean/median_*` | same unit (events ≈ keystrokes) |
-| `r_burst_*` | `n_rbursts`, `rburst_size_*` | **platform definition unknown**; ours follows the P-/R-burst distinction of Chenoweth & Hayes (2001) |
-| 4 cpm rates | 4 `cpm_*` rates | same numerators; the platform's "thinking time" start point is unknown |
-| `total_keystrokes` | no equivalent | counts non-text keys (arrows, Shift…), which text states cannot see |
+| `r_burst_num` | `n_rbursts + 1` | the platform splits the text-producing keystrokes at every run of Backspace and counts **every** segment, the final one included (backspace runs + 1 in 96 % of valid messages) |
+| `r_burst_max`, `r_burst_median` | `rburst_size_max_with_final`, `rburst_size_median_with_final` | platform sizes are text-producing keystrokes per segment, plus the sending Enter in the final segment (so +1 there); engine sizes are events |
+| 4 cpm rates | 4 `cpm_*` rates | same numerators. `writing_duration_sec` is first to last key (r = 1.000 with the raw stream); `message_duration_sec` ("with thinking") runs from the previous message being sent (conversation start for the first message), less ≈ 0.8 s — i.e. from the prompt appearing, as `response_delay_s` does |
+| `total_keystrokes` | `chars_inserted − chars_bulk_inserted` | the platform counts text-producing keys only: no Backspace, no control keys (exact match with the raw stream on all valid messages). `total_keystrokes_super_full` is every key + 1, and has no text-state equivalent |
 
-Pooling the two cohorts on these names therefore needs a caveat until the
-platform code or the 2024-25 raw stream allows a direct check (decision C).
+These rows were checked on 2026-10-13 against the 2024-25 raw keydown stream
+(`frappes.csv`, EPHEC repo, ANALYSIS-LOG of that date); the earlier version of
+this table guessed at `r_burst_*` and was wrong about `total_keystrokes`.
+Remaining differences are of unit (events vs keys) and source (text states vs
+keydowns), not of definition.
 
 ## 6. Configuration and provenance
 
@@ -330,7 +339,12 @@ keylog-metrics <adapter> <input_dir> --out <path.csv> [--config cfg.json] [--fil
    an insert, so it is not flagged by this rule.)
 3. **Burst size is counted in events**, like 2024-25, with net characters as a
    second column.
-4. **R-burst definition** follows Chenoweth & Hayes (2001) (bursts ended by a revision). The platform's is unknown; cite-check before the paper.
+4. **R-burst definition**: bursts ended by a revision. The burst as a unit of
+   text production comes from Kaufer, Hayes & Flower (1986); the P-/R-burst
+   labels are credited to Chenoweth & Hayes (2001); Baaijen, Galbraith & de
+   Glopper (2012) is the keystroke-logging operationalisation. (Checked
+   2026-10-13 in Baaijen et al., pp. 250-251; Chenoweth & Hayes itself not
+   re-read.) The 2024-25 platform also counts the final run: see §5 and §5.1.
 5. **Clock regressions**: sort by client time and flag. Alternative: exclude
    the message.
 6. **Pause location** uses the character before the insertion point *and* the

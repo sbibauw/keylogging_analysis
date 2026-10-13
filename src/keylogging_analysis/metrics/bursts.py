@@ -3,7 +3,9 @@
 P-burst: a run of events started by the message's first event or by a pause >= θ.
 R-burst: a run of non-revision events that is ended by a revision (a maximal
 run of delete/replace events). The final run of a message is ended by sending,
-not by a revision, so it is not an R-burst.
+not by a revision, so it is not an R-burst. The ``*_with_final`` sizes count
+it anyway: that is the 2024-25 LanguageLab platform's convention, under which
+a message without revisions is one burst the size of the whole message.
 """
 import pandas as pd
 
@@ -66,6 +68,9 @@ def rburst_metrics(edits: pd.DataFrame, config: MetricConfig) -> pd.DataFrame:
     out["n_rbursts"] = rb.size().reindex(idx, fill_value=0).astype("int64")
     out["rburst_size_max"] = rb.max().reindex(idx).astype("float64")
     out["rburst_size_median"] = rb.median().reindex(idx).astype("float64")
+    allruns = runs[~runs["is_rev"]].groupby(GROUP, sort=False)["size"]
+    out["rburst_size_max_with_final"] = allruns.max().reindex(idx).astype("float64")
+    out["rburst_size_median_with_final"] = allruns.median().reindex(idx).astype("float64")
     out["n_revisions"] = rev.size().reindex(idx, fill_value=0).astype("int64")
     out["n_revisions_leading_edge"] = (rev["starts_at_end"].sum()
                                        .reindex(idx, fill_value=0).astype("int64"))
